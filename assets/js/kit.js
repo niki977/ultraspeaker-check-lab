@@ -2,7 +2,8 @@
  * The Ultraspeaker Check Lab — kit.js
  * Builds the "test in the room" kits as separate PowerPoint files, in the browser,
  * from a blank 16:9 template (assets/kit/template.pptx): one file per slide,
- * an intro slide and a results grid. The speaker's presentation is never modified.
+ * an intro slide and a results grid, the Arena bottom-right on every slide (Brand Book).
+ * Text stays in Arial so the kits read the same on any venue computer. The speaker's presentation is never modified.
  * © Nicholas D. Charles — The Ultraspeaker
  */
 (function (g) {
@@ -31,11 +32,11 @@
       '<p:txBody><a:bodyPr wrap="square" lIns="0" tIns="0" rIns="0" bIns="0"><a:normAutofit/></a:bodyPr><a:lstStyle/>' + paras.join('') + '</p:txBody></p:sp>';
   }
   function slideXml(shapes, timing) {
-    return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<p:sld ' + NS + '><p:cSld><p:bg><p:bgPr><a:solidFill><a:srgbClr val="0A0A0A"/></a:solidFill><a:effectLst/></p:bgPr></p:bg>' +
+    return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<p:sld ' + NS + '><p:cSld><p:bg><p:bgPr><a:solidFill><a:srgbClr val="000000"/></a:solidFill><a:effectLst/></p:bgPr></p:bg>' +
       '<p:spTree><p:nvGrpSpPr><p:cNvPr id="1" name=""/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr><p:grpSpPr/>' + shapes.join('') + '</p:spTree></p:cSld><p:clrMapOvr><a:masterClrMapping/></p:clrMapOvr>' + (timing || '') + '</p:sld>';
   }
 
-  /* opts: kind ('video'|'image'), title, intro [lines], items, t, lang, template, poster (Uint8Array) */
+  /* opts: kind ('video'|'image'), title, intro [lines], items, t, lang, template, poster and arena (PNG bytes) */
   async function build(opts) {
     var t = opts.t, lang = opts.lang, zip = await new g.JSZip().loadAsync(opts.template);
     var types = {}, n = 0, slides = [];
@@ -47,13 +48,16 @@
     }
     function header(right) {
       var tag = 'THE ULTRASPEAKER · CHECK LAB' + (right ? ' · ' + t(opts.kind === 'video' ? 'kit.video.tag' : 'kit.image.tag') : '');
-      return [box(2, 0.5 * IN, 0.35 * IN, 9 * IN, 0.4 * IN, [para(tag, 12, 'A3A3A3', true, lang)])].concat(right ? [box(3, 10.3 * IN, 0.3 * IN, 2.53 * IN, 0.5 * IN, [para(right, 22, null, true, lang, 'r')])] : []);
+      return [box(2, 0.5 * IN, 0.35 * IN, 9 * IN, 0.4 * IN, [para(tag, 12, '8E8E8E', true, lang)])].concat(right ? [box(3, 10.3 * IN, 0.3 * IN, 2.53 * IN, 0.5 * IN, [para(right, 22, null, true, lang, 'r')])] : []);
     }
-    var poster = addFile(opts.poster, 'png');
+    var poster = addFile(opts.poster, 'png'), arena = addFile(opts.arena, 'png');
+    var AW = 0.62 * IN, AH = AW * 209 / 300; // arena.png is 300×209
+    var mark = '<p:pic><p:nvPicPr><p:cNvPr id="90" name="The Ultraspeaker Arena" descr="The Ultraspeaker"/><p:cNvPicPr><a:picLocks noChangeAspect="1"/></p:cNvPicPr><p:nvPr/></p:nvPicPr>' +
+      '<p:blipFill><a:blip r:embed="rIdArena"/><a:stretch><a:fillRect/></a:stretch></p:blipFill><p:spPr>' + xfrm(13.333 * IN - 0.5 * IN - AW, 7.5 * IN - 0.32 * IN - AH, AW, AH) + '</p:spPr></p:pic>';
 
     slides.push({ shapes: header().concat([
       box(4, 0.5 * IN, 1.1 * IN, 12.3 * IN, 1.2 * IN, [para(opts.title, 44, null, true, lang)]),
-      box(5, 0.5 * IN, 2.5 * IN, 11.5 * IN, 3.8 * IN, opts.intro.map(function (l, k) { return para(l, 20, k ? 'CFCFCF' : null, false, lang); }))]), rels: [] });
+      box(5, 0.5 * IN, 2.5 * IN, 11.5 * IN, 3.8 * IN, opts.intro.map(function (l, k) { return para(l, 20, k ? 'D0D0D0' : null, false, lang); }))]), rels: [] });
 
     // One slide per file: the file on the left (aspect kept), what it is and what to check on the right
     for (var i = 0; i < opts.items.length; i++) {
@@ -82,7 +86,7 @@
           '<p:cTn id="2" fill="hold" display="0"><p:stCondLst><p:cond delay="indefinite"/></p:stCondLst></p:cTn><p:tgtEl><p:spTgt spid="10"/></p:tgtEl></p:cMediaNode></p:' + tag + '></p:childTnLst></p:cTn></p:par></p:tnLst></p:timing>';
       }
       shapes.push(pic,
-        box(11, 8.55 * IN, 1.35 * IN, 4.25 * IN, 3 * IN, [para(it.title, 26, null, true, lang)].concat(it.lines.map(function (l) { return para(l, 15, 'CFCFCF', false, lang); }))),
+        box(11, 8.55 * IN, 1.35 * IN, 4.25 * IN, 3 * IN, [para(it.title, 26, null, true, lang)].concat(it.lines.map(function (l) { return para(l, 15, 'D0D0D0', false, lang); }))),
         box(13, 8.55 * IN, 4.65 * IN, 4.25 * IN, 1.6 * IN, [para(it.check, 16, null, false, lang)]));
       slides.push({ shapes: shapes, rels: rels, timing: timing });
     }
@@ -93,13 +97,13 @@
       box(5, 0.5 * IN, 1.8 * IN, 12.3 * IN, 4.6 * IN, opts.items.map(function (it, k) {
         return para((k + 1) + '.  ' + it.title + '      [   ] ' + t('kit.final.ok') + '     [   ] ' + t('kit.final.ko'), opts.items.length > 12 ? 12 : 16, null, false, lang);
       })),
-      box(6, 0.5 * IN, 6.6 * IN, 12.3 * IN, 0.6 * IN, [para(t('kit.final.help'), 13, 'A3A3A3', false, lang)])]), rels: [] });
+      box(6, 0.5 * IN, 6.6 * IN, 11.2 * IN, 0.6 * IN, [para(t('kit.final.help'), 13, '8E8E8E', false, lang)])]), rels: [] });
 
     // Register the slides in the package
     var ids = '', presRels = '', overrides = '';
     slides.forEach(function (s, k) {
-      var num = k + 1, rels = [{ id: 'rId1', type: REL + 'slideLayout', target: '../slideLayouts/slideLayout7.xml' }].concat(s.rels); // layout 7 = Blank
-      zip.file('ppt/slides/slide' + num + '.xml', slideXml(s.shapes, s.timing));
+      var num = k + 1, rels = [{ id: 'rId1', type: REL + 'slideLayout', target: '../slideLayouts/slideLayout7.xml' }, { id: 'rIdArena', type: REL + 'image', target: arena }].concat(s.rels); // layout 7 = Blank
+      zip.file('ppt/slides/slide' + num + '.xml', slideXml(s.shapes.concat(mark), s.timing));
       zip.file('ppt/slides/_rels/slide' + num + '.xml.rels', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' +
         rels.map(function (r) { return '<Relationship Id="' + r.id + '" Type="' + r.type + '" Target="' + r.target + '"/>'; }).join('') + '</Relationships>');
       ids += '<p:sldId id="' + (256 + k) + '" r:id="rIdS' + num + '"/>';
