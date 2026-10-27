@@ -13,9 +13,9 @@
   var REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/';
   var MIME = {
     png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', gif: 'image/gif', bmp: 'image/bmp', tif: 'image/tiff', tiff: 'image/tiff', svg: 'image/svg+xml',
-    emf: 'image/x-emf', wmf: 'image/x-wmf', heic: 'image/heic', webp: 'image/webp', avif: 'image/avif',
-    mp4: 'video/mp4', m4v: 'video/x-m4v', mov: 'video/quicktime', wmv: 'video/x-ms-wmv', avi: 'video/x-msvideo', mpg: 'video/mpeg', '3gp': 'video/3gpp',
-    mp3: 'audio/mpeg', m4a: 'audio/mp4', wav: 'audio/wav', wma: 'audio/x-ms-wma'
+    emf: 'image/x-emf', wmf: 'image/x-wmf', heic: 'image/heic', webp: 'image/webp', avif: 'image/avif', wdp: 'image/vnd.ms-photo', jfif: 'image/jpeg',
+    mp4: 'video/mp4', m4v: 'video/x-m4v', mov: 'video/quicktime', wmv: 'video/x-ms-wmv', asf: 'video/x-ms-asf', avi: 'video/x-msvideo', mpg: 'video/mpeg', mpeg: 'video/mpeg', '3gp': 'video/3gpp',
+    mp3: 'audio/mpeg', m4a: 'audio/mp4', wav: 'audio/wav', wma: 'audio/x-ms-wma', aac: 'audio/aac', aif: 'audio/x-aiff', aiff: 'audio/x-aiff'
   };
   var IN = 914400; // EMU per inch
 

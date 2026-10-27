@@ -53,10 +53,11 @@
 
     // Fonts: theme fonts, fonts named in masters/layouts, fonts named on each slide
     var fonts = {};
-    function addFont(name, slide) {
+    function addFont(name, slide, use) {
       if (!name || /^\+/.test(name)) return;
-      var f = fonts[name.toLowerCase()] = fonts[name.toLowerCase()] || { name: name, slides: [] };
+      var f = fonts[name.toLowerCase()] = fonts[name.toLowerCase()] || { name: name, slides: [], uses: [] };
       if (slide && f.slides.indexOf(slide) < 0) f.slides.push(slide);
+      if (use) f.uses.push(use);
     }
     function fontNames(xml) { return all(/<a:(?:latin|ea|cs|sym|buFont)\s[^>]*typeface="([^"]+)"/g, xml).map(function (m) { return unxml(m[1]); }); }
     var themeRel = list(presRels).filter(function (r) { return r.type === 'theme'; })[0];
@@ -66,6 +67,10 @@
       var m = new RegExp('<a:' + k + 'Font>\\s*<a:latin\\s[^>]*typeface="([^"]+)"').exec(theme);
       if (m) themeFont[k === 'major' ? '+mj-lt' : '+mn-lt'] = unxml(m[1]);
     });
+    // Font of text that names none: the master's title/body style, or the default text style
+    var master = await read(zip, 'ppt/slideMasters/slideMaster1.xml');
+    function styleFont(xml, tag) { var b = new RegExp('<' + tag + '>([\\s\\S]*?)</' + tag + '>').exec(xml), m = b && /<a:latin\s[^>]*typeface="([^"]+)"/.exec(b[1]); return m ? unxml(m[1]) : '+mn-lt'; }
+    var inherited = { title: styleFont(master, 'p:titleStyle'), body: styleFont(master, 'p:bodyStyle'), other: styleFont(pres, 'p:defaultTextStyle') };
     var layouts = Object.keys(zip.files).filter(function (p) { return /^ppt\/(slideMasters|slideLayouts)\/[^/]+\.xml$/.test(p); });
     for (var l = 0; l < layouts.length; l++) fontNames(await read(zip, layouts[l])).forEach(function (n) { addFont(n); });
     addFont(themeFont['+mj-lt']); addFont(themeFont['+mn-lt']);
@@ -86,7 +91,25 @@
         empty: !text(xml).trim() && !ownShapes && !/<p:(pic|graphicFrame|cxnSp|contentPart)[\s>]/.test(tree)
       };
       fontNames(xml).forEach(function (n) { addFont(themeFont[n] || n, num); });
-      ['+mj-lt', '+mn-lt'].forEach(function (k) { if (themeFont[k] && xml.indexOf('typeface="' + k.slice(0, 4)) >= 0 && text(xml).trim()) addFont(themeFont[k], num); });
+      // Text by font, shape by shape, with the shape's name as shown in the Selection Pane
+      all(/<p:(sp|graphicFrame)[\s>][\s\S]*?<\/p:\1>/g, tree).forEach(function (sm) {
+        var s = sm[0], shape = attr((/<p:cNvPr\s[^>]*>/.exec(s) || [''])[0], 'name') || '', byFont = {};
+        var ph = /<p:ph(\s[^>]*)?\/?>/.exec(s), own = /<a:lstStyle>([\s\S]*?)<\/a:lstStyle>/.exec(s);
+        var base = (own && (/<a:latin\s[^>]*typeface="([^"]+)"/.exec(own[1]) || [])[1]) ||
+          (!ph ? inherited.other : (/type="(title|ctrTitle)"/.test(ph[0]) ? inherited.title : inherited.body));
+        all(/<a:p>[\s\S]*?<\/a:p>/g, s).forEach(function (para) {
+          all(/<a:r>([\s\S]*?)<\/a:r>/g, para[0]).forEach(function (r) {
+            var f = unxml((/<a:latin\s[^>]*typeface="([^"]+)"/.exec(r[1]) || [])[1] || base), t = /<a:t(?:\s[^>]*)?>([^<]*)<\/a:t>/.exec(r[1]);
+            f = themeFont[f] || f;
+            if (t) byFont[f] = (byFont[f] || '') + unxml(t[1]);
+          });
+          Object.keys(byFont).forEach(function (f) { byFont[f] += ' '; }); // paragraphs stay separate words
+        });
+        Object.keys(byFont).forEach(function (f) {
+          var said = byFont[f].replace(/\s+/g, ' ').trim();
+          if (said) addFont(f, num, { slide: num, shape: shape, text: said.length > 80 ? said.slice(0, 79) + '…' : said });
+        });
+      });
 
       var notes = srels.filter(function (r) { return r.type === 'notesSlide'; })[0];
       if (notes) {
@@ -121,9 +144,10 @@
         var ext = /<a:ext\s[^>]*cx="(\d+)"[^>]*cy="(\d+)"/.exec((/<a:xfrm[\s\S]*?<\/a:xfrm>/.exec(pb) || [''])[0]);
         var src = (/<a:srcRect\s[^>]*>/.exec(pb) || [''])[0], crop = {};
         ['l', 't', 'r', 'b'].forEach(function (s) { crop[s] = Math.max(0, +(attr(src, s) || 0)) / 100000; });
-        var use = { slide: num, cx: ext ? +ext[1] : 0, crop: crop, poster: isMedia };
         var svg = /<asvg:svgBlip\s[^>]*r:embed="([^"]+)"/.exec(pb), r2 = svg && srel[svg[1]];
-        if (r2 && r2.path) { r2.used = true; (imageUses[r2.path] = imageUses[r2.path] || []).push({ slide: num, cx: use.cx, crop: crop, svg: true, fallback: r1.path }); }
+        // "poster" = not a picture of its own: a video's still frame, or the PNG kept beside an SVG
+        var use = { slide: num, cx: ext ? +ext[1] : 0, crop: crop, poster: isMedia || !!(r2 && r2.path), shape: attr((/<p:cNvPr\s[^>]*>/.exec(pb) || [''])[0], 'name') };
+        if (r2 && r2.path) { r2.used = true; (imageUses[r2.path] = imageUses[r2.path] || []).push({ slide: num, cx: use.cx, crop: crop, svg: true, fallback: r1.path, shape: use.shape }); }
         (imageUses[r1.path] = imageUses[r1.path] || []).push(use);
       });
       srels.forEach(function (r) {
@@ -142,10 +166,18 @@
     }
     Object.keys(fonts).forEach(function (k) { res.fonts.push(fonts[k]); });
 
+    // Progress follows the bytes still to decompress, not the number of files
+    function weights(paths) {
+      var sizes = paths.map(function (p) { var f = p && zip.file(p); return (f && f._data && f._data.uncompressedSize) || 1; });
+      var total = sizes.reduce(function (a, b) { return a + b; }, 0), done = 0;
+      return function (i) { done += i > 0 ? sizes[i - 1] : 0; return total ? done / total : 1; };
+    }
+
     // Probe the embedded media
+    var mediaDone = weights(res.media.map(function (m) { return m.path; }));
     for (var j = 0; j < res.media.length; j++) {
       check();
-      progress('media', j / res.media.length);
+      progress('media', mediaDone(j));
       var m = res.media[j];
       if (shownName[m.key] && !m.external) m.name = /\.[a-z0-9]{2,4}$/i.test(shownName[m.key]) ? shownName[m.key] : shownName[m.key] + '.' + m.key.split('.').pop();
       if (m.external) { m.kind = m.relKind || (/\.(mp3|wav|wma|m4a|aiff?)$/i.test(m.target) ? 'audio' : 'video'); continue; }
@@ -157,13 +189,14 @@
     }
 
     // Probe the images
-    var paths = Object.keys(imageUses);
+    var paths = Object.keys(imageUses), imageDone = weights(paths);
     for (var q = 0; q < paths.length; q++) {
       check();
-      progress('images', q / paths.length);
-      var uses = imageUses[paths[q]], file = zip.file(paths[q]);
+      progress('images', imageDone(q));
+      var uses = imageUses[paths[q]], file = zip.file(paths[q]), shape = (uses.filter(function (u) { return u.shape; })[0] || {}).shape;
       if (!file) continue;
-      res.images.push({ path: paths[q], name: baseName(paths[q]), info: CL.probe.image(await file.async('uint8array'), paths[q]), uses: uses,
+      // Shown as in the Selection Pane ("Picture 3"), followed by the file inside the presentation
+      res.images.push({ path: paths[q], name: (shape ? shape + ' · ' : '') + baseName(paths[q]), info: CL.probe.image(await file.async('uint8array'), paths[q]), uses: uses,
         poster: uses.every(function (u) { return u.poster; }) });
     }
     return res;

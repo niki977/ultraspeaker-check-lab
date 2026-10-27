@@ -11,6 +11,7 @@
   var PROJECTOR_LAB = 'https://niki977.github.io/ultraspeaker-projector-lab/';
   var BASE = g.document.currentScript.src.replace(/assets\/js\/ui\.js.*$/, '');
   var STEPS = ['read', 'fonts', 'media', 'images', 'evaluate'];
+  var WEIGHT = { read: 40, fonts: 20, media: 25, images: 15, evaluate: 0 }; // share of the bar, by typical duration
 
   function h(s) { return String(s === undefined || s === null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
   function $(sel) { return g.document.querySelector(sel); }
@@ -18,6 +19,7 @@
   function load(k, def) { try { return JSON.parse(g.localStorage.getItem('ultraspeaker-checklab-' + k)) || def; } catch (e) { return def; } }
   function save(k, v) { try { g.localStorage.setItem('ultraspeaker-checklab-' + k, JSON.stringify(v)); } catch (e) { /* private mode: not remembered */ } }
   function mb(b) { return (b / 1048576).toFixed(0); }
+  function size(b) { return (b / 1048576).toFixed(b < 10485760 ? 1 : 0); }
 
   var ICON = {
     logo: '<svg width="40" height="40" viewBox="0 0 40 40" aria-hidden="true" fill="none" stroke="#FFFFFF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="34" height="22" rx="2"/><path d="M12 16l5 5 11-11"/><path d="M20 27v6"/><path d="M12 35h16"/></svg>',
@@ -33,7 +35,7 @@
 
   /* ---------- state ---------- */
   var P;   // platform
-  var S = { tab: 'check', running: false, token: null, error: '', notice: '', read: 0, total: 0, steps: {}, zip: null, res: null, ev: null, kitBusy: false, kitStatus: {} };
+  var S = { tab: 'check', running: false, token: null, error: '', notice: '', read: 0, total: 0, steps: {}, frac: {}, pct: 0, zip: null, res: null, ev: null, kitBusy: false, kitStatus: {} };
   var settings = Object.assign({}, CL.DEFAULT_SETTINGS, load('settings', {}));
   var delivery = load('delivery', { date: '', time: '', room: '', surname: '', talk: '' });
   function defaultList() { return [0, 1, 2, 3, 4, 5, 6].map(function (i) { return { def: i, done: false }; }); }
@@ -63,10 +65,10 @@
   /* ---------- tabs ---------- */
   function checkTab() {
     if (S.running) {
-      var pct = Math.round(60 * (S.total ? S.read / S.total : 0) + 10 * STEPS.filter(function (k) { return S.steps[k] === 'done' && k !== 'read'; }).length);
+      var pct = S.pct;
       return '<section class="cl-panel" aria-live="polite"><h2 class="cl-h2" style="font-size:26px">' + h(t('prog.title')) + '</h2><span class="cl-muted">' + h(t('prog.sub')) + '</span>' +
         '<div style="display:flex;justify-content:space-between;align-items:baseline"><span class="cl-progress-num">' + pct + '%</span><span class="cl-muted">' +
-        (S.total ? h(t('prog.bytes', { a: mb(S.read), b: mb(S.total) })) : '') + '</span></div>' +
+        h(S.steps.read !== 'run' ? '' : (S.total ? t('prog.bytes', { a: size(S.read), b: size(S.total) }) : (P.mode === 'addin' ? t('prog.prepare') : ''))) + '</span></div>' +
         '<div class="cl-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="' + pct + '"><div style="width:' + pct + '%"></div></div>' +
         '<ol class="cl-steps">' + STEPS.map(function (k) {
           var s = S.steps[k] || 'todo';
@@ -93,11 +95,16 @@
   function issueCard(iss) {
     var risk = I.issue(iss.id, 'r', iss.params), fix = I.issue(iss.id, 'f', iss.params);
     var goto = function (n) { return P.canGoto ? ' <button class="cl-link" data-goto="' + n + '">' + h(t('btn.goto', { n: n })) + ' →</button>' : ''; };
-    var items = iss.items.filter(itemDetail);
+    var items = iss.items.filter(itemDetail), uses = items.filter(function (x) { return x.text; });
     return '<article class="cl-issue ' + iss.sev + '"><div class="head"><span class="title">' + h(I.issue(iss.id, 't', iss.params)) + '</span>' +
       '<span class="cl-muted">' + h(t('cat.' + iss.cat)) + (iss.slides.length ? ' · ' + h(slideLabel(iss.slides)) : '') + '</span></div>' +
       (risk ? '<p>' + h(risk) + '</p>' : '') + (fix ? '<p class="fix"><strong>' + h(t('rep.fix')) + '</strong> ' + h(fix) + '</p>' : '') +
-      (items.length ? '<details><summary>' + h(t('btn.showList', { count: items.length })) + '</summary><ul class="cl-items">' + items.map(function (x) {
+      (iss.cat === 'fonts' && S.res.type === 'pptx' && !uses.length ? '<p class="cl-muted">' + h(t('rep.fontInMaster')) + '</p>' : '') +
+      (uses.length ? '<details open><summary>' + h(t('btn.showList', { count: uses.length })) + '</summary><ul class="cl-items">' + uses.map(function (x) {
+        return '<li class="use"><span><strong>' + h(slideLabel(x.slides)) + '</strong> · ' + h(t('rep.shape', { name: x.name || '–' })) + '<br>«' + h(x.text) + '»</span>' +
+          '<span>' + goto(x.slides[0]) + '</span></li>';
+      }).join('') + '</ul></details>' : '') +
+      (items.length && !uses.length ? '<details><summary>' + h(t('btn.showList', { count: items.length })) + '</summary><ul class="cl-items">' + items.map(function (x) {
         return '<li><span>' + h(x.name) + '</span><span>' + h(itemDetail(x)) + (x.slides && x.slides.length ? goto(x.slides[0]) : '') + '</span></li>';
       }).join('') + '</ul></details>' : '') +
       (iss.slides.length && P.canGoto ? '<div>' + iss.slides.slice(0, 3).map(goto).join('') + '</div>' : '') + '</article>';
@@ -224,26 +231,31 @@
   }
 
   /* ---------- the check ---------- */
-  function step(k, state) { S.steps[k] = state; render(); }
+  /* Step k is running at fraction frac: the steps before it are done, the bar is the weighted sum */
+  function progress(k, frac) {
+    var i = STEPS.indexOf(k), changed = S.steps[k] !== 'run';
+    STEPS.forEach(function (p, j) { S.steps[p] = j < i ? 'done' : (j === i ? 'run' : 'todo'); });
+    S.frac[k] = Math.min(1, frac || 0);
+    var pct = Math.round(STEPS.reduce(function (a, p, j) { return a + WEIGHT[p] * (j < i ? 1 : (j === i ? S.frac[p] : 0)); }, 0));
+    if (changed || pct !== S.pct) { S.pct = pct; render(); }
+  }
   async function run(webFile) {
     if (S.running) return;
     var token = S.token = { cancelled: false };
-    Object.assign(S, { running: true, tab: 'check', error: '', notice: '', read: 0, total: 0, steps: { read: 'run' } });
-    render();
+    Object.assign(S, { running: true, tab: 'check', error: '', notice: '', read: 0, total: 0, steps: {}, frac: {}, pct: 0 });
+    progress('read', 0);
     try {
-      var file = await P.getFile(webFile, function (read, total) { S.read = read; S.total = total; render(); }, token);
-      step('read', 'done');
+      var file = await P.getFile(webFile, function (read, total) { S.read = read; S.total = total; progress('read', read / total); }, token);
+      progress('fonts', 0);
       var zip;
       try { zip = await g.JSZip.loadAsync(file.bytes); } catch (e) { throw new Error(/\.key$/i.test(file.name) ? 'notKey' : 'notPptx'); }
       file.bytes = null;
-      var opts = { fileName: file.name, fileBytes: file.size, token: token, onProgress: function (k) {
-        if (S.steps[k] === 'run') return;
-        STEPS.slice(1, STEPS.indexOf(k)).forEach(function (p) { S.steps[p] = 'done'; });
-        step(k, 'run');
-      } };
+      var opts = { fileName: file.name, fileBytes: file.size, token: token, onProgress: progress };
       var res = /\.key$/i.test(file.name) ? await CL.analyzeKey(zip, opts) : await CL.analyzePptx(zip, opts);
       S.zip = zip; S.res = res; S.kitStatus = {};
+      progress('evaluate', 0);
       evaluate();
+      STEPS.forEach(function (p) { S.steps[p] = 'done'; });
       S.running = false;
       go('report');
     } catch (e) {
@@ -267,7 +279,9 @@
       l.forEach(function (i) {
         out.push({ sev: sev, title: I.issue(i.id, 't', i.params) + (i.slides.length ? ' (' + slideLabel(i.slides) + ')' : '') });
         if (sev !== 'ok') ['r', 'f'].forEach(function (part) { var s = I.issue(i.id, part, i.params); if (s) out.push({ text: (part === 'f' ? t('rep.fix') + ' ' : '') + s }); });
-        i.items.slice(0, 25).forEach(function (x) { out.push({ item: '- ' + x.name + (itemDetail(x) ? ': ' + itemDetail(x) : '') }); });
+        i.items.slice(0, 25).forEach(function (x) {
+          out.push({ item: x.text ? '- ' + slideLabel(x.slides) + ' · ' + t('rep.shape', { name: x.name || '–' }) + ' · «' + x.text + '»' : '- ' + x.name + (itemDetail(x) ? ': ' + itemDetail(x) : '') });
+        });
       });
     });
     return out;

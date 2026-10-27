@@ -40,9 +40,9 @@
       if (items.length) add(sev, cat, id, Object.assign({ count: items.length }, params), slidesOf(items), items);
     }
     // Problem that is critical on one platform, a warning when the platform is unknown
-    function platformRisk(badOn, cat, id, p, slides) {
-      if (os === badOn || (isKey && badOn === 'mac')) add('crit', cat, id, p, slides);
-      else if (os === 'unknown') add('warn', cat, id, p, slides);
+    function platformRisk(badOn, cat, id, p, slides, items) {
+      if (os === badOn || (isKey && badOn === 'mac')) add('crit', cat, id, p, slides, items);
+      else if (os === 'unknown') add('warn', cat, id, p, slides, items);
     }
 
     /* Keynote on the AV desk computer */
@@ -50,15 +50,18 @@
 
     /* Fonts */
     var fonts = res.fonts.map(function (f) {
-      return { name: f.name, slides: f.slides, cls: CL.fonts.classify(f.name),
+      return { name: f.name, slides: f.slides, uses: f.uses || [], cls: CL.fonts.classify(f.name),
         embedded: res.embeddedFonts.some(function (e) { return CL.fonts.norm(e) === CL.fonts.norm(f.name); }) };
     });
     fonts.forEach(function (f) {
       var p = { name: f.name };
-      if (isKey) { if (f.cls === 'custom' || f.cls === 'win') add(st.venueOS === 'own' ? 'ok' : 'crit', 'fonts', st.venueOS === 'own' ? 'key_font_own' : 'key_font_custom', p, f.slides); }
+      // Where the font is used: slide, shape name as in the Selection Pane, the text it sets
+      var uses = f.uses.map(function (u) { return { name: u.shape, slides: [u.slide], text: u.text }; });
+      var slides = f.slides.concat(f.uses.map(function (u) { return u.slide; }));
+      if (isKey) { if (f.cls === 'custom' || f.cls === 'win') add(st.venueOS === 'own' ? 'ok' : 'crit', 'fonts', st.venueOS === 'own' ? 'key_font_own' : 'key_font_custom', p, slides); }
       else if (f.embedded || f.cls === 'office') return;
-      else if (f.cls === 'custom') add('crit', 'fonts', 'font_custom', p, f.slides);
-      else platformRisk(f.cls === 'mac' ? 'win' : 'mac', 'fonts', f.cls === 'mac' ? 'font_mac' : 'font_win', p, f.slides);
+      else if (f.cls === 'custom') add('crit', 'fonts', 'font_custom', p, slides, uses);
+      else platformRisk(f.cls === 'mac' ? 'win' : 'mac', 'fonts', f.cls === 'mac' ? 'font_mac' : 'font_win', p, slides, uses);
     });
     if (!issues.some(function (i) { return i.cat === 'fonts' && i.sev !== 'ok'; })) add('ok', 'fonts', isKey ? 'key_fonts_ok' : 'fonts_ok', { count: fonts.length });
     if (res.fontsUnreadable) add('warn', 'fonts', 'key_fonts_unreadable');

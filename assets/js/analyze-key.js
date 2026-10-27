@@ -78,10 +78,14 @@
     });
 
     // Images, videos and audio: the real files in Data/ (Keynote's own thumbnails skipped)
+    // Videos and audio first, then images, so the progress steps run in order
     var data = names.filter(function (n) { return /^Data\/[^/]+$/.test(n) && !/(^|-)small(-|\.)|thumbnail|^Data\/st-|preview/i.test(n); });
+    var isImage = function (n) { return CL.probe.kindOf(CL.probe.sniff([], n)) === 'image'; };
+    data.sort(function (a, b) { return isImage(a) - isImage(b); });
+    var nMedia = data.filter(function (n) { return !isImage(n); }).length;
     for (var j = 0; j < data.length; j++) {
       check();
-      progress('media', j / data.length);
+      progress(j < nMedia ? 'media' : 'images', j < nMedia ? j / nMedia : (j - nMedia) / (data.length - nMedia));
       var name = data[j].slice(5), bytes = await zip.file(data[j]).async('uint8array');
       var kind = CL.probe.kindOf(CL.probe.sniff(bytes, name));
       if (kind === 'image') {
