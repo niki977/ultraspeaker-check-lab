@@ -25,7 +25,8 @@
     lock: '<svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true" fill="none" stroke="#3DDC84" stroke-width="1.6" stroke-linecap="round"><rect x="3.5" y="8" width="11" height="8" rx="1.5"/><path d="M6 8V5.5a3 3 0 016 0V8"/></svg>',
     info: '<svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true" fill="none" stroke="#8E8E8E" stroke-width="1.6" stroke-linecap="round"><circle cx="9" cy="9" r="7"/><path d="M9 8v4.5"/><path d="M9 5.5v.1"/></svg>',
     done: '<svg width="20" height="20" viewBox="0 0 20 20" aria-hidden="true" fill="none" stroke="#3DDC84" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="10" r="8"/><path d="M6.5 10.2l2.4 2.4 4.6-4.8"/></svg>',
-    run: '<svg width="20" height="20" viewBox="0 0 20 20" aria-hidden="true" fill="none" stroke-width="2" stroke-linecap="round"><circle cx="10" cy="10" r="8" stroke="#3A3A3A"/><path class="cl-spin" d="M10 2a8 8 0 018 8" stroke="#FFFFFF"/></svg>',
+    // The whole icon turns (not a path inside it): the browser then animates it off the main thread, smooth while a big file is read
+    run: '<svg class="cl-spin" width="20" height="20" viewBox="0 0 20 20" aria-hidden="true" fill="none" stroke-width="2" stroke-linecap="round"><circle cx="10" cy="10" r="8" stroke="#3A3A3A"/><path d="M10 2a8 8 0 018 8" stroke="#FFFFFF"/></svg>',
     todo: '<svg width="20" height="20" viewBox="0 0 20 20" aria-hidden="true" fill="none" stroke="#3A3A3A" stroke-width="2"><circle cx="10" cy="10" r="8"/></svg>',
     video: '<svg width="22" height="22" viewBox="0 0 22 22" aria-hidden="true" fill="none" stroke="#FFFFFF" stroke-width="1.7" stroke-linejoin="round"><rect x="2" y="5" width="13" height="12" rx="2"/><path d="M15 9.5l5-2.5v8l-5-2.5"/></svg>',
     image: '<svg width="22" height="22" viewBox="0 0 22 22" aria-hidden="true" fill="none" stroke="#FFFFFF" stroke-width="1.7" stroke-linejoin="round"><rect x="2.5" y="3.5" width="17" height="15" rx="2"/><circle cx="8" cy="9" r="1.8"/><path d="M3 16l5-5 4 4 3-3 4 4"/></svg>',
@@ -56,6 +57,8 @@
   function number(key) { return '<input class="cl-input" type="number" min="1" data-set="' + key + '" value="' + h(settings[key]) + '">'; }
   function field(label, control) { return '<label class="cl-label">' + h(t(label)) + control + '</label>'; }
   function slideLabel(slides) { return !slides.length ? '' : (slides.length > 4 ? t('rep.slides', { count: slides.length }) : t('rep.slide', { list: slides.join(', ') })); }
+  /* PowerPoint: the name in the Selection Pane. Keynote has none: the kind of object, or its accessibility description */
+  function objectLabel(x) { return x.kind ? t('rep.object', { name: x.name || t('obj.' + x.kind) }) : t('rep.shape', { name: x.name || '–' }); }
   function itemDetail(x) {
     return [x.px && x.need ? x.px + ' → ' + x.need + ' px' : (x.px ? x.px + ' px' : ''), x.codec, x.format, x.mb && x.mb + ' MB', x.save && '−' + x.save + ' MB',
       x.pct && x.pct + '%', x.device, x.date && x.date.replace(/^(\d{4}):(\d{2}):(\d{2})/, '$1-$2-$3'), x.gps && 'GPS', x.slides && slideLabel(x.slides)].filter(Boolean).join(' · ');
@@ -66,7 +69,7 @@
     if (S.running) {
       return '<section class="cl-panel" aria-live="polite"><h2 class="cl-h2" style="font-size:26px">' + h(t('prog.title')) + '</h2><span class="cl-muted">' + h(t('prog.sub')) + '</span>' +
         '<div style="display:flex;align-items:baseline;gap:10px"><span class="cl-progress-num" id="cl-pct">' + S.pct + '%</span><span class="cl-muted">' + h(t('prog.total')) + '</span></div>' +
-        '<div class="cl-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="' + S.pct + '"><div id="cl-barfill" style="width:' + S.pct + '%"></div></div>' +
+        '<div class="cl-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="' + S.pct + '"><div id="cl-barfill" style="transform:scaleX(' + S.pct / 100 + ')"></div></div>' +
         '<ol class="cl-steps">' + STEPS.map(function (k) {
           var s = S.steps[k] || 'todo';
           return '<li class="' + s + '" data-step="' + k + '">' + ICON[s] + '<span>' + h(t('step.' + k)) + '</span><span class="st">' + h(stepNote(k)) + '</span></li>';
@@ -96,10 +99,9 @@
     return '<article class="cl-issue ' + iss.sev + '"><div class="head"><span class="title">' + h(I.issue(iss.id, 't', iss.params)) + '</span>' +
       '<span class="cl-muted">' + h(t('cat.' + iss.cat)) + (iss.slides.length ? ' · ' + h(slideLabel(iss.slides)) : '') + '</span></div>' +
       (risk ? '<p>' + h(risk) + '</p>' : '') + (fix ? '<p class="fix"><strong>' + h(t('rep.fix')) + '</strong> ' + h(fix) + '</p>' : '') +
-      (iss.cat === 'fonts' && S.res.type === 'pptx' && !uses.length ? '<p class="cl-muted">' + h(t(iss.slides.length ? 'rep.fontNoText' : 'rep.fontInMaster')) + '</p>' : '') +
       (uses.length ? '<details open><summary>' + h(t('btn.showList', { count: uses.length })) + '</summary><ul class="cl-items">' + uses.map(function (x) {
         var where = P.canGoto ? '<button class="cl-link" data-goto="' + x.slides[0] + '">' + h(slideLabel(x.slides)) + '</button>' : h(slideLabel(x.slides));
-        return '<li class="use"><span><strong>' + where + '</strong> · ' + h(t('rep.shape', { name: x.name || '–' })) + '<br>«' + h(x.text) + '»</span></li>';
+        return '<li class="use"><span><strong>' + where + '</strong> · ' + h(objectLabel(x)) + '<br>«' + h(x.text) + '»</span></li>';
       }).join('') + '</ul></details>' : '') +
       (items.length && !uses.length ? '<details><summary>' + h(t('btn.showList', { count: items.length })) + '</summary><ul class="cl-items">' + items.map(function (x) {
         return '<li><span>' + h(x.name) + '</span><span>' + h(itemDetail(x)) + (x.slides && x.slides.length ? goto(x.slides[0]) : '') + '</span></li>';
@@ -132,11 +134,11 @@
       '<section class="cl-card cl-muted" style="line-height:1.6"><strong style="color:#fff">' + h(t('rep.summary')) + '</strong><br>' +
       h(t('rep.sum.format', { aspect: sm.aspect, mb: sm.fileMB < 10 ? sm.fileMB.toFixed(1) : sm.fileMB.toFixed(0) })) + '<br>' +
       h(t('rep.sum.slides', { total: sm.slides, visible: sm.visible })) + '<br>' + h(t('rep.sum.media', { videos: sm.videos, audios: sm.audios, mb: sm.videoMB.toFixed(0) })) +
-      (sm.fonts.length ? '<br><strong style="color:#fff">' + h(t('rep.sum.fonts')) + '</strong><ul class="cl-fonts">' + sm.fonts.map(function (f) {
+      '<br><strong style="color:#fff">' + h(t('rep.sum.fonts', { count: sm.fonts.length })) + '</strong>' + (sm.fonts.length ? '<ul class="cl-fonts">' + sm.fonts.map(function (f) {
         var cls = f.embedded || f.cls === 'office' ? 'ok' : (f.cls === 'custom' ? 'crit' : 'warn');
         return '<li><span>' + h(f.name) + '</span><span class="cl-badge ' + cls + '">' + h(t(f.embedded ? 'rep.font.embedded' : 'rep.font.' + f.cls)) + '</span></li>';
       }).join('') + '</ul>' : '') + '</section>' +
-      note('info', 'note.fontsRef') + (sm.type === 'key' ? note('info', 'note.keyLimits') : '') +
+      note('info', 'note.fontsRef') + (sm.limited ? note('info', 'note.keyLimits') : '') +
       (P.canGoto ? '' : note('info', P.mode === 'web' ? 'note.gotoWeb' : 'note.gotoUnavailable')) + (P.downloadNote ? note('info', P.downloadNote) : '') +
       '<div class="cl-actions"><button class="cl-btn primary" id="cl-pdf">' + h(t('btn.pdf')) + '</button><button class="cl-btn" id="cl-copy">' + h(t('btn.copy')) + '</button></div>' +
       '<button class="cl-btn" id="cl-again">' + h(t(P.mode === 'web' ? 'btn.newFile' : 'btn.recheck')) + '</button>';
@@ -254,7 +256,7 @@
   /* Update the progress view in place: re-rendering would restart the spinner animation */
   function paint() {
     $('#cl-pct').textContent = S.pct + '%';
-    $('#cl-barfill').style.width = S.pct + '%';
+    $('#cl-barfill').style.transform = 'scaleX(' + S.pct / 100 + ')';
     $('.cl-bar').setAttribute('aria-valuenow', S.pct);
     Array.prototype.forEach.call(g.document.querySelectorAll('.cl-steps li'), function (li) {
       var k = li.dataset.step, s = S.steps[k] || 'todo';
@@ -292,6 +294,7 @@
   }
 
   /* ---------- report as text and PDF ---------- */
+  function fontsLine() { var f = S.ev.summary.fonts; return t('rep.sum.fonts', { count: f.length }) + (f.length ? ': ' + f.map(function (x) { return x.name; }).join(', ') : ''); }
   function settingsLine() { return t('pdf.settings', { os: t('os.' + settings.venueOS), room: settings.room === 'unknown' ? '?' : settings.room, minutes: settings.minutes || '-' }); }
   function reportLines() {
     var ev = S.ev, out = [];
@@ -303,7 +306,7 @@
         out.push({ sev: sev, title: I.issue(i.id, 't', i.params) + (i.slides.length ? ' (' + t('rep.slide', { list: i.slides.join(', ') }) + ')' : '') });
         if (sev !== 'ok') ['r', 'f'].forEach(function (part) { var s = I.issue(i.id, part, i.params); if (s) out.push({ text: (part === 'f' ? t('rep.fix') + ' ' : '') + s }); });
         i.items.slice(0, 25).forEach(function (x) {
-          out.push({ item: x.text ? '- ' + slideLabel(x.slides) + ' · ' + t('rep.shape', { name: x.name || '–' }) + ' · «' + x.text + '»' : '- ' + x.name + (itemDetail(x) ? ': ' + itemDetail(x) : '') });
+          out.push({ item: x.text ? '- ' + slideLabel(x.slides) + ' · ' + objectLabel(x) + ' · «' + x.text + '»' : '- ' + x.name + (itemDetail(x) ? ': ' + itemDetail(x) : '') });
         });
       });
     });
@@ -312,7 +315,7 @@
   function reportText() {
     var ev = S.ev;
     return ['THE ULTRASPEAKER · CHECK LAB', t('pdf.title') + ' — ' + ev.summary.fileName, t('rep.date', { date: new Date().toLocaleString(I.locale) }),
-      t('rep.ready') + ': ' + ev.score + '/100 · ' + t('rep.verdict.' + ev.verdict), settingsLine(), ''].concat(reportLines().map(function (l) {
+      t('rep.ready') + ': ' + ev.score + '/100 · ' + t('rep.verdict.' + ev.verdict), settingsLine(), fontsLine(), ''].concat(reportLines().map(function (l) {
       return l.head ? '\n== ' + l.head.toUpperCase() + ' ==' : (l.title ? '- ' + l.title : '  ' + (l.text || l.item));
     }), ['', t('note.fontsRef')]).join('\n');
   }
@@ -348,6 +351,7 @@
     doc.addImage(logo, 'PNG', M - 4, 16, 60 * 900 / 298, 60, 'logo', 'FAST'); // master logo with the Check Lab descriptor
     write(ev.summary.fileName, 13, true);
     write(t('rep.date', { date: new Date().toLocaleString(I.locale) }) + ' · ' + settingsLine(), 9, false, [110, 110, 110]);
+    write(fontsLine(), 9, false, [110, 110, 110]);
     y += 10;
     write(ev.score + '/100 · ' + t('rep.verdict.' + ev.verdict).toUpperCase() + '   (' + t('rep.crit') + ' ' + ev.crit + ' · ' + t('rep.warn') + ' ' + ev.warn + ' · ' + t('rep.ok') + ' ' + ev.ok + ')', 16, true, COLOR[ev.crit ? 'crit' : (ev.warn ? 'warn' : 'ok')]);
     reportLines().forEach(function (l) {

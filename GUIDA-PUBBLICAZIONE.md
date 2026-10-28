@@ -55,7 +55,7 @@ Cose da provare:
 
 1. Verifica il manifest dal tuo computer (serve Node.js): `npx office-addin-manifest validate ultraspeaker-check-lab-manifest.xml`.
 2. Partner Center › Microsoft 365 e Copilot › nuova offerta **Office Add-in** › carica `ultraspeaker-check-lab-manifest.xml`.
-3. Scheda dello store: icona 300×300 `assets/icons/icon-300.png`, logo `assets/img/check-lab-logo.png`, screenshot del pannello (1366×768 consigliato).
+3. Scheda dello store: icona 300×300 `assets/icons/check-lab-icon-300.png`, logo `assets/img/check-lab-logo.png`, screenshot del pannello (1366×768 consigliato).
 4. URL richiesti: privacy `…/privacy.html`, condizioni `…/terms.html`, supporto `…/support.html`.
 5. Nelle note per i revisori allega `test/Check-Lab-test-problemi.pptx` e spiega che l’analisi è locale.
 6. Per ogni aggiornamento aumenta `<Version>` nel manifest (es. 1.0.1.0).

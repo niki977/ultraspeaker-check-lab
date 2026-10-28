@@ -10,7 +10,7 @@
            xmlns:ov="http://schemas.microsoft.com/office/taskpaneappversionoverrides"
            xsi:type="TaskPaneApp">
   <Id>f23f4f33-1147-4254-92d8-9a1d910705c5</Id>
-  <Version>1.0.0.0</Version>
+  <Version>1.0.1.0</Version>
   <ProviderName>Nicholas D. Charles</ProviderName>
   <DefaultLocale>en-US</DefaultLocale>
   <DisplayName DefaultValue="The Ultraspeaker Check Lab">
@@ -25,8 +25,8 @@
     <Override Locale="fr-FR" Value="Vérifiez votre présentation avant la régie : polices, vidéos, images, format, durée et métadonnées des photos. Analyse locale : le fichier n'est jamais envoyé."/>
     <Override Locale="de-DE" Value="Prüfen Sie Ihre Präsentation vor der Übergabe an die Technik: Schriften, Videos, Bilder, Format, Zeit und Foto-Metadaten. Lokale Analyse: Die Datei wird nie hochgeladen."/>
   </Description>
-  <IconUrl DefaultValue="https://niki977.github.io/ultraspeaker-check-lab/assets/icons/icon-32.png"/>
-  <HighResolutionIconUrl DefaultValue="https://niki977.github.io/ultraspeaker-check-lab/assets/icons/icon-64.png"/>
+  <IconUrl DefaultValue="https://niki977.github.io/ultraspeaker-check-lab/assets/icons/check-lab-icon-32.png"/>
+  <HighResolutionIconUrl DefaultValue="https://niki977.github.io/ultraspeaker-check-lab/assets/icons/check-lab-icon-64.png"/>
   <SupportUrl DefaultValue="https://niki977.github.io/ultraspeaker-check-lab/support.html"/>
   <AppDomains>
     <AppDomain>https://niki977.github.io</AppDomain>
@@ -86,9 +86,9 @@
     </Hosts>
     <Resources>
       <bt:Images>
-        <bt:Image id="Icon.16x16" DefaultValue="https://niki977.github.io/ultraspeaker-check-lab/assets/icons/icon-16.png"/>
-        <bt:Image id="Icon.32x32" DefaultValue="https://niki977.github.io/ultraspeaker-check-lab/assets/icons/icon-32.png"/>
-        <bt:Image id="Icon.80x80" DefaultValue="https://niki977.github.io/ultraspeaker-check-lab/assets/icons/icon-80.png"/>
+        <bt:Image id="Icon.16x16" DefaultValue="https://niki977.github.io/ultraspeaker-check-lab/assets/icons/check-lab-icon-16.png"/>
+        <bt:Image id="Icon.32x32" DefaultValue="https://niki977.github.io/ultraspeaker-check-lab/assets/icons/check-lab-icon-32.png"/>
+        <bt:Image id="Icon.80x80" DefaultValue="https://niki977.github.io/ultraspeaker-check-lab/assets/icons/check-lab-icon-80.png"/>
       </bt:Images>
       <bt:Urls>
         <bt:Url id="Commands.Url" DefaultValue="https://niki977.github.io/ultraspeaker-check-lab/addin/commands.html"/>
