@@ -106,12 +106,15 @@
       (items.length && !uses.length ? '<details><summary>' + h(t('btn.showList', { count: items.length })) + '</summary><ul class="cl-items">' + items.map(function (x) {
         return '<li><span>' + h(x.name) + '</span><span>' + h(itemDetail(x)) + (x.slides && x.slides.length ? goto(x.slides[0]) : '') + '</span></li>';
       }).join('') + '</ul></details>' : '') +
-      // Every slide involved: clickable numbers in PowerPoint, a plain list online
-      (!iss.slides.length || uses.length ? '' : (P.canGoto
-        ? '<div class="cl-gotos"><span class="cl-muted">' + h(t('btn.gotoList')) + '</span>' + iss.slides.map(function (n) {
-            return '<button class="cl-link" data-goto="' + n + '" aria-label="' + h(t('btn.goto', { n: n })) + '">' + n + '</button>';
-          }).join('') + '</div>'
-        : (iss.slides.length > 4 ? '<p class="cl-muted">' + h(t('rep.slideList', { list: iss.slides.join(', ') })) + '</p>' : ''))) + '</article>';
+      (!iss.slides.length || uses.length ? '' : (P.canGoto || iss.slides.length > 4 ? slideLinks(iss.slides, 'btn.gotoList') : '')) + '</article>';
+  }
+  /* Every slide involved: clickable numbers in PowerPoint, a plain list online */
+  function slideLinks(slides, label) {
+    return P.canGoto
+      ? '<div class="cl-gotos"><span class="cl-muted">' + h(t(label)) + '</span>' + slides.map(function (n) {
+          return '<button class="cl-link" data-goto="' + n + '" aria-label="' + h(t('btn.goto', { n: n })) + '">' + n + '</button>';
+        }).join('') + '</div>'
+      : '<p class="cl-muted" style="margin:0">' + h(t(label === 'btn.gotoList' ? 'rep.slideList' : 'rep.font.whereList', { list: slides.join(', ') })) + '</p>';
   }
 
   function reportTab() {
@@ -136,7 +139,16 @@
       h(t('rep.sum.slides', { total: sm.slides, visible: sm.visible })) + '<br>' + h(t('rep.sum.media', { videos: sm.videos, audios: sm.audios, mb: sm.videoMB.toFixed(0) })) +
       '<br><strong style="color:#fff">' + h(t('rep.sum.fonts', { count: sm.fonts.length })) + '</strong>' + (sm.fonts.length ? '<ul class="cl-fonts">' + sm.fonts.map(function (f) {
         var cls = f.embedded || f.cls === 'office' ? 'ok' : (f.cls === 'custom' ? 'crit' : 'warn');
-        return '<li><span>' + h(f.name) + '</span><span class="cl-badge ' + cls + '">' + h(t(f.embedded ? 'rep.font.embedded' : 'rep.font.' + f.cls)) + '</span></li>';
+        var head = '<span>' + h(f.name) + '</span><span class="cl-badge ' + cls + '">' + h(t(f.embedded ? 'rep.font.embedded' : 'rep.font.' + f.cls)) + '</span>';
+        var slides = f.uses.map(function (u) { return u.slide; }).filter(function (n, i, a) { return a.indexOf(n) === i; }).sort(function (a, b) { return a - b; });
+        if (!slides.length) return '<li><div class="cl-fonthead">' + head + '</div></li>';
+        // Click the font: the slides where it is visible, then each text that uses it
+        return '<li><details><summary class="cl-fonthead">' + head + '</summary><div class="cl-fontwhere">' + slideLinks(slides, 'rep.font.where') +
+          '<ul class="cl-items">' + f.uses.map(function (u) {
+            var x = { name: u.shape, kind: u.kind, slides: [u.slide] };
+            var where = P.canGoto ? '<button class="cl-link" data-goto="' + u.slide + '">' + h(slideLabel([u.slide])) + '</button>' : h(slideLabel([u.slide]));
+            return '<li class="use"><span><strong>' + where + '</strong> · ' + h(objectLabel(x)) + '<br>«' + h(u.text) + '»</span></li>';
+          }).join('') + '</ul></div></details></li>';
       }).join('') + '</ul>' : '') + '</section>' +
       note('info', 'note.fontsRef') + (sm.limited ? note('info', 'note.keyLimits') : '') +
       (P.canGoto ? '' : note('info', P.mode === 'web' ? 'note.gotoWeb' : 'note.gotoUnavailable')) + (P.downloadNote ? note('info', P.downloadNote) : '') +

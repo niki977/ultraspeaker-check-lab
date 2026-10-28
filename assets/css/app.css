@@ -104,12 +104,20 @@ body.addin .cl-brand img { height: 52px; }
 .cl-items li { display: flex; justify-content: space-between; gap: 8px; padding: 7px 0; border-bottom: 1px solid var(--line-2); }
 .cl-items li span:first-child { overflow-wrap: anywhere; }
 .cl-items li span:last-child { color: var(--muted); text-align: right; }
+.cl-items li.use > span { color: var(--text-2); text-align: left; }
 .cl-oklist { list-style: none; margin: 0; padding: 0; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); font-size: 14px; }
 .cl-oklist li { display: flex; justify-content: space-between; gap: 8px; padding: 11px 14px; border-bottom: 1px solid var(--line-2); }
 .cl-oklist li:last-child { border-bottom: none; }
 .cl-oklist .tick { color: var(--ok); }
 .cl-fonts { list-style: none; margin: 6px 0 0; padding: 0; }
-.cl-fonts li { display: flex; justify-content: space-between; gap: 8px; padding: 4px 0; color: var(--text); }
+.cl-fonts > li { padding: 4px 0; color: var(--text); border-bottom: 1px solid var(--line-2); }
+.cl-fonts > li:last-child { border-bottom: none; }
+.cl-fonthead { display: flex; justify-content: space-between; align-items: center; gap: 8px; min-height: 34px; font-size: 14px; font-weight: 400; }
+summary.cl-fonthead { list-style: none; cursor: pointer; }
+summary.cl-fonthead::-webkit-details-marker { display: none; }
+summary.cl-fonthead span:first-child::before { content: '›'; display: inline-block; width: 14px; color: var(--muted); transition: transform .15s; }
+details[open] > summary.cl-fonthead span:first-child::before { transform: rotate(90deg); }
+.cl-fontwhere { display: flex; flex-direction: column; gap: 6px; padding: 4px 0 8px 14px; }
 .cl-badge { padding: 1px 8px; border: 1px solid var(--line-3); border-radius: 999px; font-size: 12px; white-space: nowrap; }
 .cl-badge.crit { border-color: var(--crit); color: var(--crit-text); }
 .cl-badge.warn { border-color: var(--warn); color: var(--warn); } .cl-badge.ok { border-color: var(--ok); color: var(--ok); }

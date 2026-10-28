@@ -27,7 +27,7 @@
     'rep.of100': 'de 100', 'rep.crit': 'Críticos', 'rep.warn': 'Atención', 'rep.ok': 'OK',
     'rep.sec.crit': 'Crítico', 'rep.sec.warn': 'Atención', 'rep.sec.ok': 'OK · {count} controles superados',
     'rep.slide': 'diapositiva {list}', 'rep.slides': 'en {count} diapositivas', 'rep.fix': 'Cómo solucionarlo:', 'rep.empty': 'Inicia una revisión para ver el informe.',
-    'rep.object': 'Objeto: {name}', 'obj.title': 'Título', 'obj.body': 'Cuerpo del texto', 'obj.textbox': 'Cuadro de texto', 'obj.shape': 'Forma', 'obj.master': 'Elemento de la diapositiva maestra', 'obj.slideNumber': 'Número de diapositiva', 'rep.shape': 'Panel de selección: {name}', 'rep.summary': 'Resumen', 'rep.sum.slides': 'Diapositivas: {total} en total · {visible} proyectadas', 'rep.sum.media': 'Vídeos: {videos} · audio: {audios} · vídeo total {mb} MB',
+    'rep.font.where': 'Visible en las diapositivas:', 'rep.font.whereList': 'Visible en las diapositivas: {list}', 'rep.object': 'Objeto: {name}', 'obj.title': 'Título', 'obj.body': 'Cuerpo del texto', 'obj.textbox': 'Cuadro de texto', 'obj.shape': 'Forma', 'obj.master': 'Elemento de la diapositiva maestra', 'obj.slideNumber': 'Número de diapositiva', 'rep.shape': 'Panel de selección: {name}', 'rep.summary': 'Resumen', 'rep.sum.slides': 'Diapositivas: {total} en total · {visible} proyectadas', 'rep.sum.media': 'Vídeos: {videos} · audio: {audios} · vídeo total {mb} MB',
     'rep.sum.fonts': 'Fuentes en el texto visible: {count}', 'rep.sum.format': 'Formato de diapositiva: {aspect} · archivo {mb} MB',
     'rep.font.embedded': 'incrustada', 'rep.font.office': 'estándar en Windows y Mac', 'rep.font.win': 'solo Windows', 'rep.font.mac': 'solo Mac', 'rep.font.custom': 'no estándar',
     'rep.date': 'Informe creado el {date}',

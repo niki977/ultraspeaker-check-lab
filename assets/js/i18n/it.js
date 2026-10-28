@@ -27,7 +27,7 @@
     'rep.of100': 'su 100', 'rep.crit': 'Critici', 'rep.warn': 'Attenzione', 'rep.ok': 'OK',
     'rep.sec.crit': 'Critico', 'rep.sec.warn': 'Attenzione', 'rep.sec.ok': 'OK · {count} controlli superati',
     'rep.slide': 'slide {list}', 'rep.slides': 'su {count} slide', 'rep.fix': 'Come risolvere:', 'rep.empty': 'Avvia un controllo per vedere il report.',
-    'rep.object': 'Oggetto: {name}', 'obj.title': 'Titolo', 'obj.body': 'Corpo del testo', 'obj.textbox': 'Casella di testo', 'obj.shape': 'Forma', 'obj.master': 'Elemento della diapositiva master', 'obj.slideNumber': 'Numero di slide', 'rep.shape': 'Riquadro di selezione: {name}', 'rep.summary': 'Riepilogo', 'rep.sum.slides': 'Slide: {total} totali · {visible} proiettate', 'rep.sum.media': 'Video: {videos} · audio: {audios} · video totale {mb} MB',
+    'rep.font.where': 'Visibile nelle slide:', 'rep.font.whereList': 'Visibile nelle slide: {list}', 'rep.object': 'Oggetto: {name}', 'obj.title': 'Titolo', 'obj.body': 'Corpo del testo', 'obj.textbox': 'Casella di testo', 'obj.shape': 'Forma', 'obj.master': 'Elemento della diapositiva master', 'obj.slideNumber': 'Numero di slide', 'rep.shape': 'Riquadro di selezione: {name}', 'rep.summary': 'Riepilogo', 'rep.sum.slides': 'Slide: {total} totali · {visible} proiettate', 'rep.sum.media': 'Video: {videos} · audio: {audios} · video totale {mb} MB',
     'rep.sum.fonts': 'Font nel testo visibile: {count}', 'rep.sum.format': 'Formato slide: {aspect} · file {mb} MB',
     'rep.font.embedded': 'incorporato', 'rep.font.office': 'standard Windows e Mac', 'rep.font.win': 'solo Windows', 'rep.font.mac': 'solo Mac', 'rep.font.custom': 'non standard',
     'rep.date': 'Report creato il {date}',

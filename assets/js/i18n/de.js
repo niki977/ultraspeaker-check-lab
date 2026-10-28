@@ -27,7 +27,7 @@
     'rep.of100': 'von 100', 'rep.crit': 'Kritisch', 'rep.warn': 'Achtung', 'rep.ok': 'OK',
     'rep.sec.crit': 'Kritisch', 'rep.sec.warn': 'Achtung', 'rep.sec.ok': 'OK · {count} Prüfungen bestanden',
     'rep.slide': 'Folie {list}', 'rep.slides': 'auf {count} Folien', 'rep.fix': 'So beheben Sie es:', 'rep.empty': 'Starten Sie eine Prüfung, um den Bericht zu sehen.',
-    'rep.object': 'Objekt: {name}', 'obj.title': 'Titel', 'obj.body': 'Textkörper', 'obj.textbox': 'Textfeld', 'obj.shape': 'Form', 'obj.master': 'Element der Masterfolie', 'obj.slideNumber': 'Foliennummer', 'rep.shape': 'Auswahlbereich: {name}', 'rep.summary': 'Übersicht', 'rep.sum.slides': 'Folien: {total} insgesamt · {visible} gezeigt', 'rep.sum.media': 'Videos: {videos} · Audio: {audios} · Video gesamt {mb} MB',
+    'rep.font.where': 'Sichtbar auf Folien:', 'rep.font.whereList': 'Sichtbar auf Folien: {list}', 'rep.object': 'Objekt: {name}', 'obj.title': 'Titel', 'obj.body': 'Textkörper', 'obj.textbox': 'Textfeld', 'obj.shape': 'Form', 'obj.master': 'Element der Masterfolie', 'obj.slideNumber': 'Foliennummer', 'rep.shape': 'Auswahlbereich: {name}', 'rep.summary': 'Übersicht', 'rep.sum.slides': 'Folien: {total} insgesamt · {visible} gezeigt', 'rep.sum.media': 'Videos: {videos} · Audio: {audios} · Video gesamt {mb} MB',
     'rep.sum.fonts': 'Schriften im sichtbaren Text: {count}', 'rep.sum.format': 'Folienformat: {aspect} · Datei {mb} MB',
     'rep.font.embedded': 'eingebettet', 'rep.font.office': 'Standard unter Windows und Mac', 'rep.font.win': 'nur Windows', 'rep.font.mac': 'nur Mac', 'rep.font.custom': 'kein Standard',
     'rep.date': 'Bericht erstellt am {date}',

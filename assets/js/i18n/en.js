@@ -27,7 +27,7 @@
     'rep.of100': 'out of 100', 'rep.crit': 'Critical', 'rep.warn': 'Attention', 'rep.ok': 'OK',
     'rep.sec.crit': 'Critical', 'rep.sec.warn': 'Attention', 'rep.sec.ok': 'OK · {count} checks passed',
     'rep.slide': 'slide {list}', 'rep.slides': 'on {count} slides', 'rep.fix': 'How to fix it:', 'rep.empty': 'Start a check to see the report.',
-    'rep.object': 'Object: {name}', 'obj.title': 'Title', 'obj.body': 'Body text', 'obj.textbox': 'Text box', 'obj.shape': 'Shape', 'obj.master': 'Master slide item', 'obj.slideNumber': 'Slide number', 'rep.shape': 'Selection Pane: {name}', 'rep.summary': 'Summary', 'rep.sum.slides': 'Slides: {total} in total · {visible} shown', 'rep.sum.media': 'Videos: {videos} · audio: {audios} · total video {mb} MB',
+    'rep.font.where': 'Visible on slides:', 'rep.font.whereList': 'Visible on slides: {list}', 'rep.object': 'Object: {name}', 'obj.title': 'Title', 'obj.body': 'Body text', 'obj.textbox': 'Text box', 'obj.shape': 'Shape', 'obj.master': 'Master slide item', 'obj.slideNumber': 'Slide number', 'rep.shape': 'Selection Pane: {name}', 'rep.summary': 'Summary', 'rep.sum.slides': 'Slides: {total} in total · {visible} shown', 'rep.sum.media': 'Videos: {videos} · audio: {audios} · total video {mb} MB',
     'rep.sum.fonts': 'Fonts in visible text: {count}', 'rep.sum.format': 'Slide format: {aspect} · file {mb} MB',
     'rep.font.embedded': 'embedded', 'rep.font.office': 'standard on Windows and Mac', 'rep.font.win': 'Windows only', 'rep.font.mac': 'Mac only', 'rep.font.custom': 'non-standard',
     'rep.date': 'Report created on {date}',
