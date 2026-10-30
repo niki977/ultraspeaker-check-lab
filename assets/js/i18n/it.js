@@ -1,7 +1,7 @@
 (function (g) {
   var CL = g.CheckLab = g.CheckLab || {}; CL.I18N = CL.I18N || {};
   CL.I18N.it = {
-    _lang: 'it-IT', _name: 'Italiano',
+    _lang: 'it-IT',
     'app.tagline': 'Controlla la presentazione prima della regia',
     'app.lead': 'PowerPoint o Keynote: il file viene analizzato qui nel browser e non viene mai caricato su un server.',
     'nav.check': 'Controllo', 'nav.report': 'Report', 'nav.venue': 'Regia', 'nav.sections': 'Sezioni', 'lang.label': 'Lingua',
@@ -41,7 +41,6 @@
     'err.package': 'Questo file Keynote è salvato come «pacchetto» (una cartella). In Keynote scegli Archivio › Avanzate › Cambia tipo di file › File singolo, poi riprova.',
     'err.cancelled': 'Controllo annullato.', 'err.getFile': 'PowerPoint non ha consegnato il file al pannello: salva la presentazione e riprova.',
     'err.memory': 'Il file è troppo grande per la memoria disponibile in questo pannello. Prova la versione online del Check Lab da un browser.',
-    'err.office': 'Questa pagina va aperta dall’add-in in PowerPoint. Per controllare un file dal browser usa la versione online.',
     'del.name.title': 'Nome del file per la regia', 'del.date': 'Data', 'del.time': 'Orario', 'del.room': 'Sala', 'del.surname': 'Cognome', 'del.talk': 'Titolo breve',
     'del.copy': 'Copia nome', 'del.copied': 'Copiato', 'del.hint': 'Spazi e accenti vengono tolti per evitare problemi sui computer della regia. Rinomina il file con File › Salva con nome.',
     'del.check.title': 'Checklist del giorno', 'del.check.count': '{done} di {total}', 'del.add': '+ Aggiungi voce', 'del.addPrompt': 'Nuova voce della checklist', 'del.reset': 'Ripristina lista', 'del.remove': 'Rimuovi',
@@ -144,4 +143,4 @@
       time_ok: { t: '{slides} slide in {minutes} minuti: {sps} secondi per slide, circa {est} minuti al tuo ritmo' }
     }
   };
-})(typeof window !== 'undefined' ? window : globalThis);
+})(window);

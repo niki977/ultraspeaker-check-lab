@@ -18,8 +18,13 @@
   function on(sel, ev, fn) { Array.prototype.forEach.call(g.document.querySelectorAll(sel), function (el) { el.addEventListener(ev, function (e) { fn(el, e); }); }); }
   function load(k, def) { try { return JSON.parse(g.localStorage.getItem('ultraspeaker-checklab-' + k)) || def; } catch (e) { return def; } }
   function save(k, v) { try { g.localStorage.setItem('ultraspeaker-checklab-' + k, JSON.stringify(v)); } catch (e) { /* private mode: not remembered */ } }
-  function mb(b) { return (b / 1048576).toFixed(0); }
   function size(b) { return (b / 1048576).toFixed(b < 10485760 ? 1 : 0); }
+  function fetchBytes(path) { return g.fetch(BASE + path).then(function (r) { return r.arrayBuffer(); }).then(function (b) { return new Uint8Array(b); }); }
+  function base64(bytes) {
+    var s = '';
+    for (var i = 0; i < bytes.length; i += 32768) s += String.fromCharCode.apply(null, bytes.subarray(i, i + 32768));
+    return g.btoa(s);
+  }
 
   var ICON = {
     lock: '<svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true" fill="none" stroke="#3DDC84" stroke-width="1.6" stroke-linecap="round"><rect x="3.5" y="8" width="11" height="8" rx="1.5"/><path d="M6 8V5.5a3 3 0 016 0V8"/></svg>',
@@ -35,7 +40,7 @@
 
   /* ---------- state ---------- */
   var P;   // platform
-  var S = { tab: 'check', running: false, token: null, error: '', notice: '', read: 0, total: 0, steps: {}, frac: {}, pct: 0, zip: null, res: null, ev: null, kitBusy: false, kitStatus: {} };
+  var S = { tab: 'check', running: false, token: null, error: '', notice: '', read: 0, total: 0, steps: {}, frac: 0, pct: 0, zip: null, res: null, ev: null, kitBusy: false, kitStatus: {} };
   var settings = Object.assign({}, CL.DEFAULT_SETTINGS, load('settings', {}));
   var delivery = load('delivery', { date: '', time: '', room: '', surname: '', talk: '' });
   function defaultList() { return [0, 1, 2, 3, 4, 5, 6].map(function (i) { return { def: i, done: false }; }); }
@@ -99,14 +104,16 @@
     return '<article class="cl-issue ' + iss.sev + '"><div class="head"><span class="title">' + h(I.issue(iss.id, 't', iss.params)) + '</span>' +
       '<span class="cl-muted">' + h(t('cat.' + iss.cat)) + (iss.slides.length ? ' · ' + h(slideLabel(iss.slides)) : '') + '</span></div>' +
       (risk ? '<p>' + h(risk) + '</p>' : '') + (fix ? '<p class="fix"><strong>' + h(t('rep.fix')) + '</strong> ' + h(fix) + '</p>' : '') +
-      (uses.length ? '<details open><summary>' + h(t('btn.showList', { count: uses.length })) + '</summary><ul class="cl-items">' + uses.map(function (x) {
-        var where = P.canGoto ? '<button class="cl-link" data-goto="' + x.slides[0] + '">' + h(slideLabel(x.slides)) + '</button>' : h(slideLabel(x.slides));
-        return '<li class="use"><span><strong>' + where + '</strong> · ' + h(objectLabel(x)) + '<br>«' + h(x.text) + '»</span></li>';
-      }).join('') + '</ul></details>' : '') +
+      (uses.length ? '<details open><summary>' + h(t('btn.showList', { count: uses.length })) + '</summary><ul class="cl-items">' + uses.map(useRow).join('') + '</ul></details>' : '') +
       (items.length && !uses.length ? '<details><summary>' + h(t('btn.showList', { count: items.length })) + '</summary><ul class="cl-items">' + items.map(function (x) {
         return '<li><span>' + h(x.name) + '</span><span>' + h(itemDetail(x)) + (x.slides && x.slides.length ? goto(x.slides[0]) : '') + '</span></li>';
       }).join('') + '</ul></details>' : '') +
       (!iss.slides.length || uses.length ? '' : (P.canGoto || iss.slides.length > 4 ? slideLinks(iss.slides, 'btn.gotoList') : '')) + '</article>';
+  }
+  /* Where a font sets text: slide (clickable in PowerPoint), object, the text itself */
+  function useRow(x) {
+    var where = P.canGoto ? '<button class="cl-link" data-goto="' + x.slides[0] + '">' + h(slideLabel(x.slides)) + '</button>' : h(slideLabel(x.slides));
+    return '<li class="use"><span><strong>' + where + '</strong> · ' + h(objectLabel(x)) + '<br>«' + h(x.text) + '»</span></li>';
   }
   /* Every slide involved: clickable numbers in PowerPoint, a plain list online */
   function slideLinks(slides, label) {
@@ -144,11 +151,7 @@
         if (!slides.length) return '<li><div class="cl-fonthead">' + head + '</div></li>';
         // Click the font: the slides where it is visible, then each text that uses it
         return '<li><details><summary class="cl-fonthead">' + head + '</summary><div class="cl-fontwhere">' + slideLinks(slides, 'rep.font.where') +
-          '<ul class="cl-items">' + f.uses.map(function (u) {
-            var x = { name: u.shape, kind: u.kind, slides: [u.slide] };
-            var where = P.canGoto ? '<button class="cl-link" data-goto="' + u.slide + '">' + h(slideLabel([u.slide])) + '</button>' : h(slideLabel([u.slide]));
-            return '<li class="use"><span><strong>' + where + '</strong> · ' + h(objectLabel(x)) + '<br>«' + h(u.text) + '»</span></li>';
-          }).join('') + '</ul></div></details></li>';
+          '<ul class="cl-items">' + f.uses.map(function (u) { return useRow({ name: u.shape, kind: u.kind, slides: [u.slide], text: u.text }); }).join('') + '</ul></div></details></li>';
       }).join('') + '</ul>' : '') + '</section>' +
       note('info', 'note.fontsRef') + (sm.limited ? note('info', 'note.keyLimits') : '') +
       (P.canGoto ? '' : note('info', P.mode === 'web' ? 'note.gotoWeb' : 'note.gotoUnavailable')) + (P.downloadNote ? note('info', P.downloadNote) : '') +
@@ -169,7 +172,7 @@
       var mine = kind === 'video' ? videos.length : images;
       var info = !S.res ? 'del.tests.needCheck' : (!mine ? (kind === 'video' ? 'del.tests.noVideo' : 'del.tests.noImage') : (kind === 'video' ? 'del.tests.videoInfo' : 'del.tests.imageInfo'));
       return '<div class="cl-card cl-panel" style="gap:10px"><strong>' + ICON[kind] + ' ' + h(t('del.tests.' + kind)) + '</strong>' +
-        '<span class="cl-muted">' + h(t(info, { count: mine, mb: mb(videos.reduce(function (a, m) { return a + m.bytes; }, 0)) })) + '</span><div class="cl-grid2">' +
+        '<span class="cl-muted">' + h(t(info, { count: mine, mb: (videos.reduce(function (a, m) { return a + m.bytes; }, 0) / 1048576).toFixed(0) })) + '</span><div class="cl-grid2">' +
         '<button class="cl-btn primary sm" data-kit="' + kind + ':mine"' + (!mine || S.kitBusy ? ' disabled' : '') + '>' + h(t('del.tests.mine.' + kind)) + '</button>' +
         '<button class="cl-btn sm" data-kit="' + kind + ':generic"' + (S.kitBusy ? ' disabled' : '') + '>' + h(t('del.tests.generic')) + '</button></div>' +
         '<span class="cl-muted" role="status">' + h(S.kitStatus[kind] || '') + '</span></div>';
@@ -251,8 +254,8 @@
   function progress(k, frac) {
     var i = STEPS.indexOf(k), changed = S.steps[k] !== 'run';
     STEPS.forEach(function (p, j) { S.steps[p] = j < i ? 'done' : (j === i ? 'run' : 'todo'); });
-    S.frac[k] = Math.min(1, frac || 0);
-    var pct = Math.round(STEPS.reduce(function (a, p, j) { return a + WEIGHT[p] * (j < i ? 1 : (j === i ? S.frac[p] : 0)); }, 0));
+    S.frac = Math.min(1, frac || 0);
+    var pct = Math.round(STEPS.reduce(function (a, p, j) { return a + WEIGHT[p] * (j < i ? 1 : (j === i ? S.frac : 0)); }, 0));
     if (!changed && pct === S.pct && k !== 'read') return;
     S.pct = pct;
     if ($('#cl-pct')) paint(); else render();
@@ -263,7 +266,7 @@
     if (s === 'done') return t('prog.done');
     if (s !== 'run') return '';
     if (k === 'read') return S.total ? Math.round(100 * S.read / S.total) + '% · ' + t('prog.bytes', { a: size(S.read), b: size(S.total) }) : (P.mode === 'addin' ? t('prog.prepare') : '');
-    return k === 'evaluate' ? t('prog.running') : Math.round(100 * S.frac[k]) + '%';
+    return k === 'evaluate' ? t('prog.running') : Math.round(100 * S.frac) + '%';
   }
   /* Update the progress view in place: re-rendering would restart the spinner animation */
   function paint() {
@@ -279,7 +282,7 @@
   async function run(webFile) {
     if (S.running) return;
     var token = S.token = { cancelled: false };
-    Object.assign(S, { running: true, tab: 'check', error: '', notice: '', read: 0, total: 0, steps: {}, frac: {}, pct: 0 });
+    Object.assign(S, { running: true, tab: 'check', error: '', notice: '', read: 0, total: 0, steps: {}, frac: 0, pct: 0 });
     progress('read', 0);
     try {
       var file = await P.getFile(webFile, function (read, total) { S.read = read; S.total = total; progress('read', read / total); }, token);
@@ -296,12 +299,11 @@
       S.running = false;
       go('report');
     } catch (e) {
-      var code = e.name === 'CancelError' ? 'cancelled' : (e instanceof RangeError ? 'memory' : e.message);
+      var code = e instanceof RangeError ? 'memory' : e.message;
       var known = ['cancelled', 'notPptx', 'notKey', 'type', 'getFile', 'memory'];
       if (known.indexOf(code) < 0) g.console.error(e);
-      S.running = false;
-      S.error = t('err.' + (known.indexOf(code) >= 0 ? code : 'read'));
-      go('check');
+      Object.assign(S, { running: false, tab: 'check', error: t('err.' + (known.indexOf(code) >= 0 ? code : 'read')) });
+      render();
     }
   }
 
@@ -331,24 +333,12 @@
       return l.head ? '\n== ' + l.head.toUpperCase() + ' ==' : (l.title ? '- ' + l.title : '  ' + (l.text || l.item));
     }), ['', t('note.fontsRef')]).join('\n');
   }
-  function base64(path) { // a font file as base64, for jsPDF
-    return g.fetch(BASE + path).then(function (r) { return r.arrayBuffer(); }).then(function (b) {
-      var u = new Uint8Array(b), s = '';
-      for (var i = 0; i < u.length; i += 32768) s += String.fromCharCode.apply(null, u.subarray(i, i + 32768));
-      return g.btoa(s);
-    });
-  }
-  function image(path) { // a PNG as a data URL, for jsPDF
-    return g.fetch(BASE + path).then(function (r) { return r.blob(); }).then(function (b) {
-      return new Promise(function (ok) { var fr = new g.FileReader(); fr.onload = function () { ok(fr.result); }; fr.readAsDataURL(b); });
-    });
-  }
   async function exportPdf() {
     var ev = S.ev, doc = new g.jspdf.jsPDF({ unit: 'pt', format: 'a4' });
-    var logo = await image('assets/img/check-lab-logo-white.png'), arena = await image('assets/img/arena-black.png');
+    var logo = base64(await fetchBytes('assets/img/check-lab-logo-white.png')), arena = base64(await fetchBytes('assets/img/arena-black.png'));
     // Brand typeface embedded in the PDF (Latin and Latin Extended subset)
-    doc.addFileToVFS('cl-regular.ttf', await base64('assets/fonts/champagne-limousines-regular.ttf')); doc.addFont('cl-regular.ttf', 'CL', 'normal');
-    doc.addFileToVFS('cl-bold.ttf', await base64('assets/fonts/champagne-limousines-bold.ttf')); doc.addFont('cl-bold.ttf', 'CL', 'bold');
+    doc.addFileToVFS('cl-regular.ttf', base64(await fetchBytes('assets/fonts/champagne-limousines-regular.ttf'))); doc.addFont('cl-regular.ttf', 'CL', 'normal');
+    doc.addFileToVFS('cl-bold.ttf', base64(await fetchBytes('assets/fonts/champagne-limousines-bold.ttf'))); doc.addFont('cl-bold.ttf', 'CL', 'bold');
     var W = doc.internal.pageSize.getWidth(), H = doc.internal.pageSize.getHeight(), M = 48, y = 124;
     var COLOR = { crit: [208, 40, 40], warn: [190, 140, 0], ok: [30, 150, 80] }; // red, yellow, green (agreed exception to the Brand Book)
     function write(s, size, bold, color, indent) {
@@ -393,7 +383,7 @@
   }
 
   /* ---------- test kits ---------- */
-  function asset(name) { return g.fetch(BASE + 'assets/kit/' + name).then(function (r) { return r.arrayBuffer(); }).then(function (b) { return new Uint8Array(b); }); }
+  function asset(name) { return fetchBytes('assets/kit/' + name); }
   async function makeKit(kind, mine) {
     S.kitBusy = true; S.kitStatus[kind] = t('del.tests.building'); render();
     try {
@@ -413,6 +403,7 @@
   CL.UI = {
     init: function (platform) { P = platform; I.set(I.detect(P.langHint)); g.document.body.classList.add(P.mode); render(); },
     notice: function (msg) { S.notice = msg; render(); },
+    base64: base64,
     download: function (bytes, name, type) {
       var a = g.document.createElement('a');
       a.href = URL.createObjectURL(new Blob([bytes], { type: type })); a.download = name;

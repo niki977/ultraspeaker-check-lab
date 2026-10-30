@@ -1,7 +1,7 @@
 (function (g) {
   var CL = g.CheckLab = g.CheckLab || {}; CL.I18N = CL.I18N || {};
   CL.I18N.de = {
-    _lang: 'de-DE', _name: 'Deutsch',
+    _lang: 'de-DE',
     'app.tagline': 'Prüfen Sie Ihre Präsentation, bevor Sie sie an die Technik übergeben',
     'app.lead': 'PowerPoint oder Keynote: Die Datei wird hier in Ihrem Browser analysiert und nie auf einen Server hochgeladen.',
     'nav.check': 'Prüfung', 'nav.report': 'Bericht', 'nav.venue': 'Technik', 'nav.sections': 'Bereiche', 'lang.label': 'Sprache',
@@ -41,7 +41,6 @@
     'err.package': 'Diese Keynote-Datei ist als „Paket“ (Ordner) gespeichert. Wählen Sie in Keynote Ablage › Erweitert › Dateityp ändern › Einzelne Datei und versuchen Sie es erneut.',
     'err.cancelled': 'Prüfung abgebrochen.', 'err.getFile': 'PowerPoint hat die Datei nicht an den Aufgabenbereich übergeben: Speichern Sie die Präsentation und versuchen Sie es erneut.',
     'err.memory': 'Die Datei ist zu groß für den verfügbaren Speicher in diesem Aufgabenbereich. Versuchen Sie die Online-Version von Check Lab im Browser.',
-    'err.office': 'Diese Seite muss über das Add-in in PowerPoint geöffnet werden. Um eine Datei im Browser zu prüfen, nutzen Sie die Online-Version.',
     'del.name.title': 'Dateiname für die Technik', 'del.date': 'Datum', 'del.time': 'Uhrzeit', 'del.room': 'Saal', 'del.surname': 'Nachname', 'del.talk': 'Kurztitel',
     'del.copy': 'Namen kopieren', 'del.copied': 'Kopiert', 'del.hint': 'Leerzeichen und Akzente werden entfernt, um Probleme auf den Technik-Computern zu vermeiden. Benennen Sie die Datei mit Datei › Speichern unter um.',
     'del.check.title': 'Checkliste für den Vortragstag', 'del.check.count': '{done} von {total}', 'del.add': '+ Eintrag hinzufügen', 'del.addPrompt': 'Neuer Eintrag der Checkliste', 'del.reset': 'Liste zurücksetzen', 'del.remove': 'Entfernen',
@@ -144,4 +143,4 @@
       time_ok: { t: '{slides} Folien in {minutes} Minuten: {sps} Sekunden pro Folie, etwa {est} Minuten in Ihrem Tempo' }
     }
   };
-})(typeof window !== 'undefined' ? window : globalThis);
+})(window);

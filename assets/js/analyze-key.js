@@ -69,21 +69,21 @@
   function ref(m, n) { return num(sub(m, n), 1); }                 // TSP.Reference / DataReference: identifier = 1
   function refs(m, n) { return subs(m, n).map(function (r) { return num(r, 1); }); }
 
-  /* Every object of an .iwa stream: id -> { type, payload, refs, data } (ArchiveInfo + first message) */
+  /* Every object of an .iwa stream: id -> { type, its first message, the Data/ files it uses } */
   function objects(d, into) {
     var p = 0;
     while (p < d.length) {
       var l = 0, mul = 1, c;
       do { c = d[p++]; l += (c & 0x7F) * mul; mul *= 128; } while (c & 0x80);
-      var info = msg(d, p, p + l); p += l;
-      var id = num(info, 1), infos = subs(info, 2), first = null, r = [], dr = [];
-      infos.forEach(function (mi) {
+      var info = msg(d, p, p + l), id = num(info, 1), first = null, data = [];
+      p += l;
+      subs(info, 2).forEach(function (mi) {                       // MessageInfo: type 1, length 3, data references 6
         var len = num(mi, 3) || 0;
-        if (!first) first = { type: num(mi, 1), s: p, e: p + len };
-        r = r.concat(mi[5] || []); dr = dr.concat(mi[6] || []);
+        if (!first) first = { type: num(mi, 1), d: d, s: p, e: p + len, data: data, m: null };
+        data.push.apply(data, mi[6] || []);
         p += len;
       });
-      if (id !== undefined && first) into[id] = { type: first.type, d: d, s: first.s, e: first.e, refs: r, data: dr, m: null };
+      if (id !== undefined && first) into[id] = first;
     }
   }
 
@@ -106,8 +106,8 @@
   }
 
   // Message type numbers (Keynote's registry)
-  var T = { DOC: 1, SHOW: 2, NODE: 4, SLIDE: 5, SLIDE2: 6, PH: 7, PH2: 12, NOTE: 15, STORAGE: 2001, STORAGE2: 2005, SHAPEINFO: 2011,
-    CHARSTYLE: 2021, PARASTYLE: 2022, LINK: 2032, SHAPE: 3004, IMAGE: 3005, MASK: 3006, MOVIE: 3007, GROUP: 3008, META: 11006 };
+  var T = { DOC: 1, PH: 7, PH2: 12, STORAGE: 2001, STORAGE2: 2005, SHAPEINFO: 2011, CHARSTYLE: 2021, PARASTYLE: 2022, LINK: 2032,
+    IMAGE: 3005, MOVIE: 3007, GROUP: 3008, META: 11006 };
 
   function readStructure(objs, res) {
     function get(id) { var o = objs[id]; if (o && !o.m) o.m = msg(o.d, o.s, o.e); return o; }
@@ -126,15 +126,16 @@
     if (!show) throw new Error('no show');
     var size = sub(show.m, 4), tree = sub(show.m, 3);
     res.slideW = num(size, 1) || 0; res.slideH = num(size, 2) || 0;
-    var order = [];
-    (function walk(nodeId, depth) {
-      var node = get(nodeId);
-      if (!node || depth > 50) return;
-      var slideId = ref(node.m, 2);
-      if (slideId) order.push({ slide: slideId, hidden: num(node.m, 4) === 1 });
-      refs(node.m, 1).forEach(function (c) { walk(c, depth + 1); });
-    })(ref(tree, 1), 0);
-    if (!order.length) refs(tree, 2).forEach(function (id) { var n = get(id); if (n) order.push({ slide: ref(n.m, 2), hidden: num(n.m, 4) === 1 }); });
+    var order = [], seen = {};
+    (function walk(nodes) {                                       // SlideNode: slide 2, skipped 4, indented children 1
+      nodes.forEach(function (id) {
+        var node = get(id), slideId = node && ref(node.m, 2);
+        if (!node || seen[id]) return;
+        seen[id] = 1;
+        if (slideId) order.push({ slide: slideId, hidden: num(node.m, 4) === 1 });
+        walk(refs(node.m, 1));
+      });
+    })(tree[2] ? refs(tree, 2) : [ref(tree, 1)]);                // top-level slides, or the root node of older files
     if (!order.length) throw new Error('no slides');
 
     // Font of a style: its own font or the nearest parent's (TSS.StyleArchive.parent)
@@ -173,8 +174,7 @@
     function storageText(id) { var st = get(id); return st && (st.type === T.STORAGE || st.type === T.STORAGE2) ? clean(strs(st.m, 3).join('')) : ''; }
     function links(storageId, slide) {
       var st = get(storageId);
-      if (!st || !st.m) return;
-      table(st.m, 11).forEach(function (x) {
+      if (st) table(st.m, 11).forEach(function (x) {
         var f = get(x.id), url = f && f.type === T.LINK ? str(f.m, 2) : '';
         if (/^(https?|file):/i.test(url)) res.links.push({ slide: slide, kind: /^https?:/i.test(url) ? 'web' : 'file', target: url });
       });
@@ -190,11 +190,10 @@
     }
 
     var fonts = {}, mediaById = {}, imageUses = {};
+    function picture(file) { return (imageUses[file.path] = imageUses[file.path] || { path: file.path, name: file.name, uses: [] }).uses; }
     function addFont(ps, use) {
       var name = family(ps), k = name.toLowerCase();
-      var f = fonts[k] = fonts[k] || { name: name, slides: [], uses: [] };
-      if (f.slides.indexOf(use.slide) < 0) f.slides.push(use.slide);
-      f.uses.push(use);
+      (fonts[k] = fonts[k] || { name: name, uses: [] }).uses.push(use);
     }
 
     /* One object shown on a slide: returns true when it puts something on the screen */
@@ -213,8 +212,8 @@
         var kind = fromMaster ? 'master' : (kindHint || (num(info, 6) === 1 ? 'textbox' : 'shape'));
         var byFont = textByFont(storage);
         Object.keys(byFont).forEach(function (f) {
-          var said = byFont[f].replace(/[\u0000-\u001F\u2028\u2029\uFFFC]/g, ' ').replace(/\s+/g, ' ').trim();
-          if (said) addFont(f, { slide: sn, kind: kind, shape: d.label, text: said.length > 80 ? said.slice(0, 79) + '…' : said });
+          var said = clean(byFont[f]);
+          addFont(f, { slide: sn, kind: kind, shape: d.label, text: said.length > 80 ? said.slice(0, 79) + '…' : said });
         });
         links(storage, sn);
         if (d.url && /^https?:/i.test(d.url)) res.links.push({ slide: sn, kind: 'web', target: d.url });
@@ -232,14 +231,14 @@
             shown = Math.min(d.w, mk.w);
           }
         }
-        (imageUses[file.path] = imageUses[file.path] || { file: file, uses: [] }).uses.push({ slide: sn, cx: shown, crop: crop, kind: fromMaster ? 'master' : 'image', shape: d.label });
+        picture(file).push({ slide: sn, cx: shown, crop: crop, kind: fromMaster ? 'master' : 'image', shape: d.label });
         if (d.url && /^https?:/i.test(d.url)) res.links.push({ slide: sn, kind: 'web', target: d.url });
         return true;
       }
       if (t === T.MOVIE) {
         var mf = files[ref(o.m, 14)];
         if (!mf) return true;
-        var m = mediaById[mf.path] = mediaById[mf.path] || { path: mf.path, name: mf.name, slides: [], audioOnly: num(o.m, 9) === 1 };
+        var m = mediaById[mf.path] = mediaById[mf.path] || { path: mf.path, name: mf.name, slides: [] };
         if (m.slides.indexOf(sn) < 0) m.slides.push(sn);
         return true;
       }
@@ -251,7 +250,7 @@
         if (!st) return;
         st.data.forEach(function (did) {
           var file = files[did];
-          if (file) (imageUses[file.path] = imageUses[file.path] || { file: file, uses: [] }).uses.push({ slide: sn, cx: res.slideW, crop: { l: 0, t: 0, r: 0, b: 0 }, kind: 'master' });
+          if (file) picture(file).push({ slide: sn, cx: res.slideW, crop: { l: 0, t: 0, r: 0, b: 0 }, kind: 'master' });
         });
         cur = ref(sub(st.m, 1), 3);
       }
@@ -278,83 +277,74 @@
       background(ref(m, 1), sn);
     });
 
-    Object.keys(fonts).forEach(function (k) { res.fonts.push(fonts[k]); });
-    return { media: mediaById, images: imageUses };
+    function values(o) { return Object.keys(o).map(function (k) { return o[k]; }); }
+    res.fonts = values(fonts);
+    return { media: values(mediaById), images: values(imageUses) };
   }
+
+  /* When the structure cannot be read: the estimate of earlier versions (slide count, fonts named in the styles, every picture in Data/) */
+  async function estimate(zip, res, iwas, streams, data) {
+    res.limited = true;
+    res.slides = []; res.fonts = []; res.links = [];
+    iwas.forEach(function (n) { if (/\/Slide[-\d]*\.iwa$/.test(n)) res.slides.push({ index: res.slides.length + 1, hidden: null, empty: null, notes: null }); });
+    var prev = zip.file('preview.jpg');
+    if (prev) { var p = CL.probe.image(await prev.async('uint8array'), 'preview.jpg'); res.slideW = p.width; res.slideH = p.height; }
+    var est = {};
+    streams.forEach(function (s) { fontStrings(s, est); });
+    res.fontsUnreadable = !streams.length;
+    Object.keys(est).forEach(function (ps) { res.fonts.push({ name: family(ps), uses: [] }); });
+    return { media: [], images: data.filter(isImage).map(function (n) { return { path: n, name: n.slice(5), uses: [] }; }) };
+  }
+  function isImage(n) { return CL.probe.kindOf(CL.probe.sniff([], n)) === 'image'; }
 
   /* ---------- the analysis ---------- */
   async function analyze(zip, opts) {
-    var token = opts.token || {};
-    function check() { if (token.cancelled) throw new CL.CancelError(); }
-    function progress(step, frac) { if (opts.onProgress) opts.onProgress(step, frac); }
+    function check() { if (opts.token && opts.token.cancelled) throw new Error('cancelled'); }
     var res = { type: 'key', fileName: opts.fileName, fileBytes: opts.fileBytes, slideW: 0, slideH: 0, slides: [], fonts: [], embeddedFonts: [], media: [], images: [], links: [] };
     var names = Object.keys(zip.files), iwas = names.filter(function (n) { return /^Index\/.*\.iwa$/.test(n); });
     if (!iwas.length) throw new Error('notKey');
+    // Keynote's own thumbnails and theme previews are skipped
+    var data = names.filter(function (n) { return /^Data\/[^/]+$/.test(n) && !/(^|-)small(-|\.)|thumbnail|^Data\/(st|mt)-|preview/i.test(n); });
 
     // Read every object of the document
-    var objs = {}, streams = [], errors = 0;
+    var objs = {}, streams = [];
     for (var i = 0; i < iwas.length; i++) {
       check();
-      progress('fonts', 0.8 * i / iwas.length);
-      try { var d = iwa(await zip.file(iwas[i]).async('uint8array')); streams.push(d); objects(d, objs); } catch (e) { errors++; }
+      opts.onProgress('fonts', 0.8 * i / iwas.length);
+      try { var d = iwa(await zip.file(iwas[i]).async('uint8array')); streams.push(d); objects(d, objs); } catch (e) { /* skipped */ }
     }
-    var found = null;
-    try { found = readStructure(objs, res); } catch (e) { found = null; }
-    progress('fonts', 1);
-
-    if (!found) {
-      // Fallback: the estimate of earlier versions (fonts from the styles, slide count, all files in Data/)
-      res.limited = true; res.fontUses = false;
-      res.slides = []; res.fonts = []; res.links = [];
-      iwas.forEach(function (n) { if (/\/Slide[-\d]*\.iwa$/.test(n)) res.slides.push({ index: res.slides.length + 1, hidden: null, empty: null, notes: null }); });
-      var prev = zip.file('preview.jpg');
-      if (prev) { var p = CL.probe.image(await prev.async('uint8array'), 'preview.jpg'); res.slideW = p.width; res.slideH = p.height; }
-      var est = {};
-      streams.forEach(function (s) { fontStrings(s, est); });
-      res.fontsUnreadable = errors === iwas.length;
-      Object.keys(est).forEach(function (ps) { res.fonts.push({ name: family(ps), slides: [] }); });
-    }
-
-    // Progress follows the bytes still to decompress, not the number of files
-    function weights(paths) {
-      var sizes = paths.map(function (p) { var f = zip.file(p); return (f && f._data && f._data.uncompressedSize) || 1; });
-      var total = sizes.reduce(function (a, b) { return a + b; }, 0), done = 0;
-      return function (k) { done += k > 0 ? sizes[k - 1] : 0; return total ? done / total : 1; };
-    }
+    var found;
+    try { found = readStructure(objs, res); } catch (e) { found = await estimate(zip, res, iwas, streams, data); }
+    opts.onProgress('fonts', 1);
 
     // Video and audio: the movies on the slides, plus any other sound or video file in Data/ (soundtrack)
-    var isImage = function (n) { return CL.probe.kindOf(CL.probe.sniff([], n)) === 'image'; };
-    var data = names.filter(function (n) { return /^Data\/[^/]+$/.test(n) && !/(^|-)small(-|\.)|thumbnail|^Data\/(st|mt)-|preview/i.test(n); });
-    var media = found ? Object.keys(found.media).map(function (k) { return found.media[k]; }) : [];
-    data.filter(function (n) { return !isImage(n) && !media.some(function (m) { return m.path === n; }); })
-      .forEach(function (n) { media.push({ path: n, name: n.slice(5), slides: [] }); });
-    var mediaDone = weights(media.map(function (m) { return m.path; }));
+    var media = found.media.concat(data.filter(function (n) { return !isImage(n) && !found.media.some(function (m) { return m.path === n; }); })
+      .map(function (n) { return { path: n, name: n.slice(5), slides: [] }; }));
+    var mediaDone = CL.probe.byBytes(zip, media);
     for (var j = 0; j < media.length; j++) {
       check();
-      progress('media', mediaDone(j));
+      opts.onProgress('media', mediaDone(j));
       var mm = media[j], mfile = zip.file(mm.path);
       if (!mfile) continue;
       var bytes = await mfile.async('uint8array'), kind = CL.probe.kindOf(CL.probe.sniff(bytes, mm.path));
       if (kind === 'image' || kind === 'other') continue;
       var info = CL.probe.media(bytes, mm.path);
-      res.media.push({ path: mm.path, name: mm.name, slides: mm.slides.sort(function (a, b) { return a - b; }), bytes: bytes.length, info: info, kind: info.kind === 'audio' ? 'audio' : 'video' });
+      res.media.push({ path: mm.path, name: mm.name, slides: mm.slides.sort(function (a, b) { return a - b; }), bytes: bytes.length, info: info, kind: info.kind });
     }
 
-    // Images: those on the slides (with their size and crop), or every picture in Data/ for the estimate
-    var pics = found ? Object.keys(found.images).map(function (k) { return found.images[k]; })
-      : data.filter(isImage).map(function (n) { return { file: { path: n, name: n.slice(5) }, uses: [] }; });
-    var imageDone = weights(pics.map(function (x) { return x.file.path; }));
-    for (var q = 0; q < pics.length; q++) {
+    // Images: those on the slides, with their size and crop
+    var imageDone = CL.probe.byBytes(zip, found.images);
+    for (var q = 0; q < found.images.length; q++) {
       check();
-      progress('images', imageDone(q));
-      var pic = pics[q], f = zip.file(pic.file.path);
+      opts.onProgress('images', imageDone(q));
+      var pic = found.images[q], f = zip.file(pic.path);
       if (!f) continue;
       var ib = await f.async('uint8array');
-      if (CL.probe.kindOf(CL.probe.sniff(ib, pic.file.path)) !== 'image') continue;
-      res.images.push({ path: pic.file.path, name: pic.file.name, info: CL.probe.image(ib, pic.file.path), uses: pic.uses });
+      if (CL.probe.kindOf(CL.probe.sniff(ib, pic.path)) !== 'image') continue;
+      res.images.push({ path: pic.path, name: pic.name, info: CL.probe.image(ib, pic.path), uses: pic.uses });
     }
     return res;
   }
 
   CL.analyzeKey = analyze;
-})(typeof window !== 'undefined' ? window : globalThis);
+})(window);

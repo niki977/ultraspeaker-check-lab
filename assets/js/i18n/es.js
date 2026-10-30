@@ -1,7 +1,7 @@
 (function (g) {
   var CL = g.CheckLab = g.CheckLab || {}; CL.I18N = CL.I18N || {};
   CL.I18N.es = {
-    _lang: 'es-ES', _name: 'Español',
+    _lang: 'es-ES',
     'app.tagline': 'Revisa tu presentación antes de entregarla a la cabina técnica',
     'app.lead': 'PowerPoint o Keynote: el archivo se analiza aquí, en tu navegador, y nunca se sube a un servidor.',
     'nav.check': 'Revisión', 'nav.report': 'Informe', 'nav.venue': 'Cabina', 'nav.sections': 'Secciones', 'lang.label': 'Idioma',
@@ -41,7 +41,6 @@
     'err.package': 'Este archivo Keynote está guardado como «paquete» (una carpeta). En Keynote elige Archivo › Avanzado › Cambiar tipo de archivo › Archivo único y vuelve a intentarlo.',
     'err.cancelled': 'Revisión cancelada.', 'err.getFile': 'PowerPoint no ha entregado el archivo al panel: guarda la presentación y vuelve a intentarlo.',
     'err.memory': 'El archivo es demasiado grande para la memoria disponible en este panel. Prueba la versión online de Check Lab en un navegador.',
-    'err.office': 'Esta página debe abrirse desde el complemento en PowerPoint. Para revisar un archivo en el navegador, usa la versión online.',
     'del.name.title': 'Nombre del archivo para la cabina', 'del.date': 'Fecha', 'del.time': 'Hora', 'del.room': 'Sala', 'del.surname': 'Apellido', 'del.talk': 'Título breve',
     'del.copy': 'Copiar nombre', 'del.copied': 'Copiado', 'del.hint': 'Se eliminan espacios y acentos para evitar problemas en los ordenadores de la cabina. Cambia el nombre con Archivo › Guardar como.',
     'del.check.title': 'Lista del día', 'del.check.count': '{done} de {total}', 'del.add': '+ Añadir elemento', 'del.addPrompt': 'Nuevo elemento de la lista', 'del.reset': 'Restablecer lista', 'del.remove': 'Quitar',
@@ -144,4 +143,4 @@
       time_ok: { t: '{slides} diapositivas en {minutes} minutos: {sps} segundos por diapositiva, unos {est} minutos a tu ritmo' }
     }
   };
-})(typeof window !== 'undefined' ? window : globalThis);
+})(window);

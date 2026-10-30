@@ -48,18 +48,17 @@
     /* Keynote on the AV desk computer */
     if (isKey) add(st.venueOS === 'win' ? 'crit' : (st.venueOS === 'unknown' ? 'warn' : 'ok'), 'format', st.venueOS === 'win' ? 'key_windows' : (st.venueOS === 'unknown' ? 'key_unknown' : 'key_mac'));
 
-    /* Fonts: only those that set visible text count (a font left in the theme, in empty boxes or in
-       unused placeholders never reaches the screen). Without per-text detail (res.fontUses false) all are kept. */
-    var allFonts = res.fonts.length, limited = res.fontUses === false;
-    var fonts = res.fonts.filter(function (f) { return limited || (f.uses && f.uses.length); }).map(function (f) {
-      return { name: f.name, slides: f.slides, uses: f.uses || [], cls: CL.fonts.classify(f.name),
+    /* Fonts: the analyzers list only those that set visible text (a Keynote estimate, res.limited, lists every font in the styles) */
+    var limited = !!res.limited;
+    var fonts = res.fonts.map(function (f) {
+      return { name: f.name, uses: f.uses, cls: CL.fonts.classify(f.name),
         embedded: res.embeddedFonts.some(function (e) { return CL.fonts.norm(e) === CL.fonts.norm(f.name); }) };
     });
     fonts.forEach(function (f) {
       var p = { name: f.name };
       // Where the font is used: slide, shape name as in the Selection Pane, the text it sets
       var uses = f.uses.map(function (u) { return { name: u.shape, kind: u.kind, slides: [u.slide], text: u.text }; });
-      var slides = limited ? f.slides : f.uses.map(function (u) { return u.slide; });
+      var slides = f.uses.map(function (u) { return u.slide; });
       if (isKey) { if (f.cls === 'custom' || f.cls === 'win') add(st.venueOS === 'own' ? 'ok' : 'crit', 'fonts', st.venueOS === 'own' ? 'key_font_own' : 'key_font_custom', p, slides, uses); }
       else if (f.embedded || f.cls === 'office') return;
       else if (f.cls === 'custom') add('crit', 'fonts', 'font_custom', p, slides, uses);
@@ -79,7 +78,7 @@
       if (i.format === 'wmv') platformRisk('mac', 'media', 'video_wmv', p, m.slides);
       else if (/ProRes|DV|Motion JPEG|Uncompressed|Animation|HDV|Cinepak|Sorenson|PNG sequence/.test(v.codec)) add(onMac ? 'warn' : 'crit', 'media', 'video_pro', p, m.slides);
       else if (/^(hvc1|hev1)$/.test(v.fourcc)) { if (!onMac) add('warn', 'media', 'video_hevc', p, m.slides); }
-      else if (h264 && i.container === 'mov') { if (!isKey) add('warn', 'media', 'video_mov', p, m.slides); }
+      else if (h264 && i.format === 'mov') { if (!isKey) add('warn', 'media', 'video_mov', p, m.slides); }
       else if (!h264) add('warn', 'media', 'video_legacy', p, m.slides);
       if (i.width > 1920 || i.height > 1200) add('warn', 'media', 'video_4k', p, m.slides);
       if (i.incomplete) add('warn', 'media', 'video_incomplete', p, m.slides);
@@ -88,7 +87,7 @@
       embedded.map(function (m) { return { name: m.name, mb: mb(m.bytes || 0).toFixed(1), codec: m.info.video ? m.info.video.codec : '?', slides: m.slides }; }));
 
     /* Images: resolution against the size on the room screen, weight, crops, risky formats */
-    var scale = res.slideW && !res.limited ? Math.min(room[0] / res.slideW, room[1] / res.slideH) : 0;
+    var scale = res.slideW && !limited ? Math.min(room[0] / res.slideW, room[1] / res.slideH) : 0;
     var lowres = [], heavy = [], cropped = [], exif = [], saving = 0, croppedBytes = 0;
     var fmt = { eps: [], emf: [], modern: [], tiff: [], cmyk: [], svg: [], pdf: [] };
     var images = res.images.filter(function (im) { return !im.poster; });
@@ -112,7 +111,7 @@
       }
       if (!i.width) return;
       var need = 0; // widest size in pixels the whole picture will be shown at
-      if (res.limited) {
+      if (limited) {
         need = room[0];
         if (i.width < room[0] / 2 && i.bytes > 8192) lowres.push({ name: im.name, slides: [], px: px(i), need: room[0] });
       } else if (scale) uses.forEach(function (u) {
@@ -129,7 +128,7 @@
         heavy.push({ name: im.name, slides: slides, mb: mb(i.bytes).toFixed(1), px: px(i), save: mb(save).toFixed(1) });
       }
     });
-    group('warn', 'images', res.limited ? 'key_img_lowres' : 'img_lowres', lowres, { room: room[0] });
+    group('warn', 'images', limited ? 'key_img_lowres' : 'img_lowres', lowres, { room: room[0] });
     if (mb(saving) >= 10) group('warn', 'images', 'img_heavy', heavy, { save: mb(saving).toFixed(0) });
     if (mb(croppedBytes) >= 2) group('warn', 'images', 'img_cropped', cropped, { mb: mb(croppedBytes).toFixed(0) });
     group('crit', 'images', 'img_eps', fmt.eps);
@@ -151,7 +150,7 @@
     else if (!roomRatio) add('ok', 'format', 'format_info', { aspect: aspect });
     else if (Math.abs(ratio - roomRatio) / roomRatio < 0.03) add('ok', 'format', 'format_match', { aspect: aspect, room: st.room });
     else add('warn', 'format', 'format_mismatch', { aspect: aspect, room: st.room, bars: ratio > roomRatio ? 'tb' : 'lr' });
-    if (res.limited) add('ok', 'format', 'key_slides', { count: res.slides.length });
+    if (limited) add('ok', 'format', 'key_slides', { count: res.slides.length });
     else {
       var hidden = res.slides.filter(function (s) { return s.hidden; }).map(function (s) { return s.index; });
       var empty = res.slides.filter(function (s) { return s.empty && !s.hidden; }).map(function (s) { return s.index; });
@@ -164,7 +163,7 @@
     var web = res.links.filter(function (l) { return l.kind === 'web'; }), files = res.links.filter(function (l) { return l.kind !== 'web'; });
     group('warn', 'format', 'links_files', files.map(function (l) { return { name: decodeURIComponent(String(l.target).split(/[\\/]/).pop()), slides: [l.slide] }; }));
     group('warn', 'format', 'links_web', web.map(function (l) { return { name: l.target, slides: [l.slide] }; }));
-    if (!res.links.length && !res.limited) add('ok', 'format', 'links_ok');
+    if (!res.links.length && !limited) add('ok', 'format', 'links_ok');
     var fileMB = mb(res.fileBytes || 0), sizeText = fileMB < 10 ? fileMB.toFixed(1) : fileMB.toFixed(0);
     if (fileMB > st.critMB) add('crit', 'format', 'size_crit', { mb: sizeText, limit: st.critMB });
     else add(fileMB > st.warnMB ? 'warn' : 'ok', 'format', fileMB > st.warnMB ? 'size_warn' : 'size_ok', { mb: sizeText, limit: st.warnMB });
@@ -184,10 +183,10 @@
     var crit = count('crit'), warn = count('warn'), score = Math.max(0, 100 - crit * 15 - warn * 4);
     return {
       issues: issues, crit: crit, warn: warn, ok: count('ok'), score: score, verdict: crit ? 'not_ready' : (score >= 85 ? 'ready' : 'almost'),
-      summary: { type: res.type, fileName: res.fileName, fileMB: fileMB, slides: res.slides.length, visible: visible, aspect: aspect,
-        videos: videos.length, audios: res.media.length - videos.length, videoMB: mb(totalVideo), images: images.length, fonts: fonts, fontsHidden: limited ? 0 : allFonts - fonts.length, limited: !!res.limited }
+      summary: { fileName: res.fileName, fileMB: fileMB, slides: res.slides.length, visible: visible, aspect: aspect,
+        videos: videos.length, audios: res.media.length - videos.length, videoMB: mb(totalVideo), fonts: fonts, limited: limited }
     };
   }
 
   CL.evaluate = evaluate;
-})(typeof window !== 'undefined' ? window : globalThis);
+})(window);

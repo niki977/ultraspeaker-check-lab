@@ -99,7 +99,7 @@
 
   function media(bytes, name) {
     var b = new Uint8Array(bytes), f = sniff(b, name);
-    var info = { format: f, container: f, kind: kindOf(f) === 'audio' ? 'audio' : 'video', video: null, audio: null, width: 0, height: 0, duration: 0 };
+    var info = { format: f, kind: kindOf(f) === 'audio' ? 'audio' : 'video', video: null, audio: null, width: 0, height: 0, duration: 0 };
     if (ISO.indexOf(f) >= 0) probeIso(b, info);
     else if (info.kind === 'video') info.video = { codec: f === 'wmv' ? 'Windows Media Video' : f.toUpperCase() };
     else info.audio = { codec: f.toUpperCase() };
@@ -169,14 +169,21 @@
         }
         if (head.indexOf('Exif') >= 0) info.meta = { exif: true, gps: null, make: '', model: '', date: '' };
       } else if (f === 'svg') {
-        var tag = (/<svg[^>]*>/i.exec(str(b, 0, 4096)) || [''])[0];
-        var vb = /viewBox\s*=\s*["'][-\d.\s,]+?([\d.]+)[\s,]+([\d.]+)\s*["']/i.exec(tag);
-        var sw = /\swidth\s*=\s*["']([\d.]+)/i.exec(tag), sh = /\sheight\s*=\s*["']([\d.]+)/i.exec(tag);
+        var svg = (/<svg[^>]*>/i.exec(str(b, 0, 4096)) || [''])[0];
+        var vb = /viewBox\s*=\s*["'][-\d.\s,]+?([\d.]+)[\s,]+([\d.]+)\s*["']/i.exec(svg);
+        var sw = /\swidth\s*=\s*["']([\d.]+)/i.exec(svg), sh = /\sheight\s*=\s*["']([\d.]+)/i.exec(svg);
         info.width = sw ? +sw[1] : (vb ? +vb[1] : 0); info.height = sh ? +sh[1] : (vb ? +vb[2] : 0);
       }
     } catch (err) { /* unreadable header: dimensions stay 0 and the image is skipped */ }
     return info;
   }
 
-  CL.probe = { sniff: sniff, kindOf: kindOf, media: media, image: image };
-})(typeof window !== 'undefined' ? window : globalThis);
+  /* Progress through files to decompress, by their size and not their number: share done before file k */
+  function byBytes(zip, files) {
+    var sizes = files.map(function (x) { var f = x.path && zip.file(x.path); return (f && f._data && f._data.uncompressedSize) || 1; });
+    var total = sizes.reduce(function (a, b) { return a + b; }, 0), done = 0;
+    return function (k) { done += k > 0 ? sizes[k - 1] : 0; return total ? done / total : 1; };
+  }
+
+  CL.probe = { sniff: sniff, kindOf: kindOf, media: media, image: image, byBytes: byBytes };
+})(window);

@@ -8,9 +8,6 @@
   'use strict';
   var CL = g.CheckLab = g.CheckLab || {};
 
-  function CancelError() { this.name = 'CancelError'; }
-  CL.CancelError = CancelError;
-
   function unxml(s) {
     return String(s).replace(/&#x([0-9a-f]+);/gi, function (m, h) { return String.fromCharCode(parseInt(h, 16)); })
       .replace(/&#(\d+);/g, function (m, d) { return String.fromCharCode(+d); })
@@ -35,13 +32,12 @@
     });
     return map;
   }
-  function list(map) { return Object.keys(map).map(function (k) { var r = map[k]; r.id = k; return r; }); }
+  function list(map) { return Object.keys(map).map(function (k) { return map[k]; }); }
   function text(xml) { return all(/<a:t(?:\s[^>]*)?>([^<]*)<\/a:t>/g, xml).map(function (m) { return unxml(m[1]); }).join(''); }
 
   async function analyze(zip, opts) {
-    var token = opts.token || {};
-    function check() { if (token.cancelled) throw new CancelError(); }
-    function progress(step, frac) { if (opts.onProgress) opts.onProgress(step, frac); }
+    function check() { if (opts.token && opts.token.cancelled) throw new Error('cancelled'); }
+    var progress = opts.onProgress;
     var res = { type: 'pptx', fileName: opts.fileName, fileBytes: opts.fileBytes, slideW: 0, slideH: 0, slides: [], fonts: [], embeddedFonts: [], media: [], images: [], links: [] };
 
     var pres = await read(zip, 'ppt/presentation.xml');
@@ -51,15 +47,12 @@
     res.embeddedFonts = all(/<p:font\s[^>]*typeface="([^"]*)"/g, (/<p:embeddedFontLst>[\s\S]*?<\/p:embeddedFontLst>/.exec(pres) || [''])[0]).map(function (m) { return unxml(m[1]); });
     var presRels = await rels(zip, 'ppt/presentation.xml');
 
-    // Fonts: theme fonts, fonts named in masters/layouts, fonts named on each slide
+    // Fonts: only those that set visible text, with the slide, the shape and the text
     var fonts = {};
-    function addFont(name, slide, use) {
-      if (!name || /^\+/.test(name)) return;
-      var f = fonts[name.toLowerCase()] = fonts[name.toLowerCase()] || { name: name, slides: [], uses: [] };
-      if (slide && f.slides.indexOf(slide) < 0) f.slides.push(slide);
-      if (use) f.uses.push(use);
+    function addFont(name, use) {
+      if (/^\+/.test(name)) return;                                // a theme font the theme does not define
+      (fonts[name.toLowerCase()] = fonts[name.toLowerCase()] || { name: name, uses: [] }).uses.push(use);
     }
-    function fontNames(xml) { return all(/<a:(?:latin|ea|cs|sym|buFont)\s[^>]*typeface="([^"]+)"/g, xml).map(function (m) { return unxml(m[1]); }); }
     var themeRel = list(presRels).filter(function (r) { return r.type === 'theme'; })[0];
     var theme = await read(zip, themeRel ? themeRel.path : 'ppt/theme/theme1.xml');
     var themeFont = {};
@@ -71,9 +64,6 @@
     var master = await read(zip, 'ppt/slideMasters/slideMaster1.xml');
     function styleFont(xml, tag) { var b = new RegExp('<' + tag + '>([\\s\\S]*?)</' + tag + '>').exec(xml), m = b && /<a:latin\s[^>]*typeface="([^"]+)"/.exec(b[1]); return m ? unxml(m[1]) : '+mn-lt'; }
     var inherited = { title: styleFont(master, 'p:titleStyle'), body: styleFont(master, 'p:bodyStyle'), other: styleFont(pres, 'p:defaultTextStyle') };
-    var layouts = Object.keys(zip.files).filter(function (p) { return /^ppt\/(slideMasters|slideLayouts)\/[^/]+\.xml$/.test(p); });
-    for (var l = 0; l < layouts.length; l++) fontNames(await read(zip, layouts[l])).forEach(function (n) { addFont(n); });
-    addFont(themeFont['+mj-lt']); addFont(themeFont['+mn-lt']);
 
     var ids = all(/<p:sldId\s[^>]*r:id="([^"]+)"/g, pres).map(function (m) { return m[1]; });
     var imageUses = {}, mediaByKey = {}, shownName = {};
@@ -90,7 +80,6 @@
         index: num, hidden: attr((/<p:sld[\s>][^>]*>/.exec(xml) || [''])[0], 'show') === '0', notes: false,
         empty: !text(xml).trim() && !ownShapes && !/<p:(pic|graphicFrame|cxnSp|contentPart)[\s>]/.test(tree)
       };
-      fontNames(xml).forEach(function (n) { addFont(themeFont[n] || n, num); });
       // Text by font, shape by shape, with the shape's name as shown in the Selection Pane
       all(/<p:(sp|graphicFrame)[\s>][\s\S]*?<\/p:\1>/g, tree).forEach(function (sm) {
         var s = sm[0], shape = attr((/<p:cNvPr\s[^>]*>/.exec(s) || [''])[0], 'name') || '', byFont = {};
@@ -107,7 +96,7 @@
         });
         Object.keys(byFont).forEach(function (f) {
           var said = byFont[f].replace(/\s+/g, ' ').trim();
-          if (said) addFont(f, num, { slide: num, shape: shape, text: said.length > 80 ? said.slice(0, 79) + '…' : said });
+          if (said) addFont(f, { slide: num, shape: shape, text: said.length > 80 ? said.slice(0, 79) + '…' : said });
         });
       });
 
@@ -166,15 +155,8 @@
     }
     Object.keys(fonts).forEach(function (k) { res.fonts.push(fonts[k]); });
 
-    // Progress follows the bytes still to decompress, not the number of files
-    function weights(paths) {
-      var sizes = paths.map(function (p) { var f = p && zip.file(p); return (f && f._data && f._data.uncompressedSize) || 1; });
-      var total = sizes.reduce(function (a, b) { return a + b; }, 0), done = 0;
-      return function (i) { done += i > 0 ? sizes[i - 1] : 0; return total ? done / total : 1; };
-    }
-
     // Probe the embedded media
-    var mediaDone = weights(res.media.map(function (m) { return m.path; }));
+    var mediaDone = CL.probe.byBytes(zip, res.media);
     for (var j = 0; j < res.media.length; j++) {
       check();
       progress('media', mediaDone(j));
@@ -189,7 +171,7 @@
     }
 
     // Probe the images
-    var paths = Object.keys(imageUses), imageDone = weights(paths);
+    var paths = Object.keys(imageUses), imageDone = CL.probe.byBytes(zip, paths.map(function (p) { return { path: p }; }));
     for (var q = 0; q < paths.length; q++) {
       check();
       progress('images', imageDone(q));
@@ -203,4 +185,4 @@
   }
 
   CL.analyzePptx = analyze;
-})(typeof window !== 'undefined' ? window : globalThis);
+})(window);

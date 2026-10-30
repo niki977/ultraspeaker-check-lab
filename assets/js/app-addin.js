@@ -11,18 +11,8 @@
   function call(fn) {
     return new Promise(function (ok, ko) { fn(function (r) { if (r.status === Office.AsyncResultStatus.Succeeded) ok(r.value); else ko(new Error('getFile')); }); });
   }
-  function base64(bytes) {
-    var s = '';
-    for (var i = 0; i < bytes.length; i += 32768) s += String.fromCharCode.apply(null, bytes.subarray(i, i + 32768));
-    return g.btoa(s);
-  }
 
-  Office.onReady(function (info) {
-    if (info.host !== Office.HostType.PowerPoint) {
-      CL.UI.init({ mode: 'addin', documentName: function () { return ''; }, platformLabel: '' });
-      CL.UI.notice(t('err.office'));
-      return;
-    }
+  Office.onReady(function () {
     var ctx = Office.context, doc = ctx.document, plat = ctx.platform, isMac = plat === Office.PlatformType.Mac;
     var canCreate = g.PowerPoint && PowerPoint.createPresentation && ctx.requirements.isSetSupported('PowerPointApi', '1.1');
     CL.UI.init({
@@ -37,7 +27,7 @@
         try {
           var out = new Uint8Array(file.size), off = 0;
           for (var i = 0; i < file.sliceCount; i++) {
-            if (token.cancelled) throw new CL.CancelError();
+            if (token.cancelled) throw new Error('cancelled');
             var data = (await call(function (cb) { file.getSliceAsync(i, cb); })).data;
             out.set(data, off); off += data.length;
             onProgress(off, file.size);
@@ -56,7 +46,7 @@
       },
       openKit: async function (bytes, name) {
         if (canCreate) {
-          try { await PowerPoint.createPresentation(base64(bytes)); return 'opened'; } catch (e) { /* fall back to a download */ }
+          try { await PowerPoint.createPresentation(CL.UI.base64(bytes)); return 'opened'; } catch (e) { /* fall back to a download */ }
         }
         if (isMac) return 'failed';
         CL.UI.download(bytes, name, 'application/vnd.openxmlformats-officedocument.presentationml.presentation');

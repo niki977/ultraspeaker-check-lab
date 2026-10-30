@@ -1,7 +1,7 @@
 (function (g) {
   var CL = g.CheckLab = g.CheckLab || {}; CL.I18N = CL.I18N || {};
   CL.I18N.fr = {
-    _lang: 'fr-FR', _name: 'Français',
+    _lang: 'fr-FR',
     'app.tagline': 'Vérifiez votre présentation avant de la remettre à la régie',
     'app.lead': 'PowerPoint ou Keynote : le fichier est analysé ici, dans votre navigateur, et n’est jamais envoyé sur un serveur.',
     'nav.check': 'Contrôle', 'nav.report': 'Rapport', 'nav.venue': 'Régie', 'nav.sections': 'Sections', 'lang.label': 'Langue',
@@ -41,7 +41,6 @@
     'err.package': 'Ce fichier Keynote est enregistré comme « paquet » (un dossier). Dans Keynote, choisissez Fichier › Avancé › Modifier le type de fichier › Fichier unique, puis réessayez.',
     'err.cancelled': 'Contrôle annulé.', 'err.getFile': 'PowerPoint n’a pas transmis le fichier au volet : enregistrez la présentation et réessayez.',
     'err.memory': 'Le fichier est trop volumineux pour la mémoire disponible dans ce volet. Essayez la version en ligne de Check Lab dans un navigateur.',
-    'err.office': 'Cette page doit être ouverte depuis le complément dans PowerPoint. Pour contrôler un fichier dans le navigateur, utilisez la version en ligne.',
     'del.name.title': 'Nom du fichier pour la régie', 'del.date': 'Date', 'del.time': 'Heure', 'del.room': 'Salle', 'del.surname': 'Nom', 'del.talk': 'Titre court',
     'del.copy': 'Copier le nom', 'del.copied': 'Copié', 'del.hint': 'Les espaces et les accents sont supprimés pour éviter les problèmes sur les ordinateurs de la régie. Renommez le fichier avec Fichier › Enregistrer sous.',
     'del.check.title': 'Check-list du jour', 'del.check.count': '{done} sur {total}', 'del.add': '+ Ajouter un élément', 'del.addPrompt': 'Nouvel élément de la check-list', 'del.reset': 'Réinitialiser la liste', 'del.remove': 'Supprimer',
@@ -144,4 +143,4 @@
       time_ok: { t: '{slides} diapositives en {minutes} minutes : {sps} secondes par diapositive, environ {est} minutes à votre rythme' }
     }
   };
-})(typeof window !== 'undefined' ? window : globalThis);
+})(window);

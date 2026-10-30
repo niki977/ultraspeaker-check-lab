@@ -1,7 +1,7 @@
 (function (g) {
   var CL = g.CheckLab = g.CheckLab || {}; CL.I18N = CL.I18N || {};
   CL.I18N.en = {
-    _lang: 'en-US', _name: 'English',
+    _lang: 'en-US',
     'app.tagline': 'Check your presentation before handing it to the AV desk',
     'app.lead': 'PowerPoint or Keynote: the file is analysed here in your browser and is never uploaded to a server.',
     'nav.check': 'Check', 'nav.report': 'Report', 'nav.venue': 'AV desk', 'nav.sections': 'Sections', 'lang.label': 'Language',
@@ -41,7 +41,6 @@
     'err.package': 'This Keynote file is saved as a “package” (a folder). In Keynote choose File › Advanced › Change File Type › Single File, then try again.',
     'err.cancelled': 'Check cancelled.', 'err.getFile': 'PowerPoint did not hand the file to the pane: save the presentation and try again.',
     'err.memory': 'The file is too large for the memory available in this pane. Try the online version of Check Lab in a browser.',
-    'err.office': 'This page must be opened from the add-in in PowerPoint. To check a file in the browser, use the online version.',
     'del.name.title': 'File name for the AV desk', 'del.date': 'Date', 'del.time': 'Time', 'del.room': 'Room', 'del.surname': 'Surname', 'del.talk': 'Short title',
     'del.copy': 'Copy name', 'del.copied': 'Copied', 'del.hint': 'Spaces and accents are removed to avoid problems on the AV desk computers. Rename the file with File › Save As.',
     'del.check.title': 'Talk-day checklist', 'del.check.count': '{done} of {total}', 'del.add': '+ Add item', 'del.addPrompt': 'New checklist item', 'del.reset': 'Reset list', 'del.remove': 'Remove',
@@ -144,4 +143,4 @@
       time_ok: { t: '{slides} slides in {minutes} minutes: {sps} seconds per slide, about {est} minutes at your pace' }
     }
   };
-})(typeof window !== 'undefined' ? window : globalThis);
+})(window);

@@ -128,7 +128,7 @@
   function myVideos(zip, res, t) {
     return res.media.filter(function (m) { return !m.external && !m.missing; }).map(function (m) {
       var i = m.info, s = Math.round(i.duration);
-      var tech = [(i.video || i.audio).codec, i.container.toUpperCase(), i.width ? i.width + '×' + i.height : '', s ? Math.floor(s / 60) + ':' + ('0' + s % 60).slice(-2) : '', size(m.bytes)];
+      var tech = [(i.video || i.audio).codec, i.format.toUpperCase(), i.width ? i.width + '×' + i.height : '', s ? Math.floor(s / 60) + ':' + ('0' + s % 60).slice(-2) : '', size(m.bytes)];
       return { title: m.name, kind: m.kind, ext: extOf(m.path), width: i.width, height: i.height, load: loader(zip, m.path),
         lines: from(m.slides, t).concat([tech.filter(Boolean).join(' · ')], i.audio ? [t('kit.audio', { codec: i.audio.codec })] : []),
         check: t(m.kind === 'audio' ? 'kit.check.audio' : 'kit.check.video') };
@@ -168,4 +168,4 @@
   }
 
   CL.kit = { build: build, myVideos: myVideos, myImages: myImages, genericItems: genericItems };
-})(typeof window !== 'undefined' ? window : globalThis);
+})(window);

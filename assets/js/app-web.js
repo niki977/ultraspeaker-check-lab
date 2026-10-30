@@ -16,7 +16,7 @@
       var out;
       try { out = new Uint8Array(file.size); } catch (e) { throw new Error('memory'); }
       for (var off = 0; off < file.size; off += CHUNK) {
-        if (token.cancelled) throw new CL.CancelError();
+        if (token.cancelled) throw new Error('cancelled');
         out.set(new Uint8Array(await file.slice(off, off + CHUNK).arrayBuffer()), off);
         onProgress(Math.min(file.size, off + CHUNK), file.size);
       }

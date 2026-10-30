@@ -39,4 +39,4 @@
   }
 
   CL.fonts = { classify: classify, norm: norm };
-})(typeof window !== 'undefined' ? window : globalThis);
+})(window);
