@@ -9,7 +9,7 @@
   var CL = g.CheckLab, CHUNK = 8388608, ua = g.navigator.userAgent;
 
   CL.UI.init({
-    mode: 'web', canGoto: false,
+    mode: 'web', canGoto: false, canApply: false, canBand: false,
     hostOS: /Mac/.test(ua) ? 'mac' : (/Windows/.test(ua) ? 'win' : 'unknown'),
     getFile: async function (file, onProgress, token) {
       if (!/\.(pptx|key)$/i.test(file.name)) throw new Error(/\.ppt$/i.test(file.name) ? 'notPptx' : 'type');

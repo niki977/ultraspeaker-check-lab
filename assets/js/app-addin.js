@@ -15,6 +15,19 @@
   Office.onReady(function () {
     var ctx = Office.context, doc = ctx.document, plat = ctx.platform, isMac = plat === Office.PlatformType.Mac;
     var canCreate = g.PowerPoint && PowerPoint.createPresentation && ctx.requirements.isSetSupported('PowerPointApi', '1.1');
+    var api = function (v) { return !!(g.PowerPoint && PowerPoint.run && ctx.requirements.isSetSupported('PowerPointApi', v)); };
+    /* The one shape with this Selection Pane name on slide n (1-based) */
+    function withShape(n, name, fn) {
+      return PowerPoint.run(async function (pc) {
+        var shapes = pc.presentation.slides.getItemAt(n - 1).shapes;
+        shapes.load('items/name,items/left,items/top,items/width,items/height');
+        await pc.sync();
+        var hit = shapes.items.filter(function (x) { return x.name === name; });
+        if (hit.length !== 1) throw new Error('shape');
+        fn(hit[0], shapes);
+        await pc.sync();
+      });
+    }
     CL.UI.init({
       mode: 'addin', langHint: ctx.displayLanguage,
       hostOS: isMac ? 'mac' : (plat === Office.PlatformType.PC ? 'win' : (/Mac/.test(g.navigator.userAgent) ? 'mac' : 'win')),
@@ -34,6 +47,17 @@
           }
           return { bytes: out, name: (this.documentName() || 'presentation').replace(/(\.pptx)?$/i, '.pptx'), size: file.size };
         } finally { file.closeAsync(); }
+      },
+      // Legibility fixes from the report, where this PowerPoint allows them (shapes and text: PowerPointApi 1.4, stacking order: 1.8)
+      canApply: api('1.4'), canBand: api('1.8'),
+      applyColor: function (n, name, color) { return withShape(n, name, function (sh) { sh.textFrame.textRange.font.color = color; }); },
+      addBand: function (n, name, dark) {
+        return withShape(n, name, function (sh, shapes) {
+          var pad = 6, band = shapes.addGeometricShape(PowerPoint.GeometricShapeType.rectangle, { left: sh.left - pad, top: sh.top - pad, width: sh.width + 2 * pad, height: sh.height + 2 * pad });
+          band.name = 'Check Lab · ' + (dark ? 'fascia scura' : 'fascia chiara');
+          band.fill.setSolidColor(dark ? '#000000' : '#FFFFFF'); band.fill.transparency = 0.4; band.lineFormat.visible = false;
+          sh.setZOrder(PowerPoint.ShapeZOrder.bringToFront);             // the text above the band, the band above the photo
+        });
       },
       goto: function (n) {
         doc.goToByIdAsync(n, Office.GoToType.Index, function (r) { if (r.status !== Office.AsyncResultStatus.Succeeded) CL.UI.notice(t('note.gotoUnavailable')); });

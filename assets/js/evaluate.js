@@ -9,7 +9,8 @@
   var CL = g.CheckLab = g.CheckLab || {};
 
   var ROOMS = { '16:9': [1920, 1080], '16:10': [1920, 1200], '4:3': [1400, 1050], '3:1': [3840, 1280], unknown: [1920, 1080] };
-  CL.DEFAULT_SETTINGS = { venueOS: 'unknown', hostOS: 'unknown', minutes: '', room: '16:9', warnMB: 500, critMB: 1000, minSec: 20, paceSec: 40 };
+  CL.DEFAULT_SETTINGS = { venueOS: 'unknown', hostOS: 'unknown', minutes: '', room: '16:9', warnMB: 500, critMB: 1000, minSec: 20, paceSec: 40,
+    light: 'penombra', rows: 'sala', scrH: '', rowD: '', style: null };
 
   function aspectLabel(w, h) {
     if (!w || !h) return '?';
@@ -143,6 +144,56 @@
     /* Privacy */
     if (exif.length) group('warn', 'privacy', 'privacy_exif', exif, { gps: exif.filter(function (x) { return x.gps; }).length });
     else add('ok', 'privacy', 'privacy_ok');
+
+    /* Legibility: contrast with what is behind the text, text on photos, size for the farthest row, the chosen style */
+    if (res.texts) {
+      var C = CL.color, amb = C.LIGHT[st.light] === undefined ? C.LIGHT.penombra : C.LIGHT[st.light], rowsK = C.rows(st);
+      var unitH = res.slideH / (res.fontUnit || 1), roomR = st.room === 'unknown' ? 0 : room[0] / room[1], slideR = res.slideW / res.slideH;
+      var hiddenSlide = {}, unitName = res.fontUnit === 1 ? 'px' : 'pt';
+      res.slides.forEach(function (sl) { if (sl.hidden) hiddenSlide[sl.index] = 1; });
+      var style = st.style && st.style.used ? st.style : null, low = [], photo = [], eye = [], small = [], off = [], fine = 0, minAll = 0;
+      var shownTexts = res.texts.filter(function (t) { return !hiddenSlide[t.slide]; });
+      shownTexts.forEach(function (t) {
+        var min = C.minSize(rowsK, CL.fonts.xHeight(t.font) || 0.5, unitH, slideR, roomR), need = t.title || t.size >= min * 1.6 ? 3 : 4.5;
+        var base = { name: t.shape, kind: t.kind, slides: [t.slide], text: t.text, unit: res.fontUnit === 1 ? 'px' : 'pt' };
+        minAll = Math.max(minAll, min);
+        if (t.size && t.size < min) small.push(Object.assign({ size: Math.round(t.size), min: Math.ceil(min) }, base));
+        var b = t.behind;
+        if (!t.color || !b || b.kind === 'gradient' || b.kind === 'pattern' || b.kind === 'unknown') eye.push(base);
+        else if (b.kind === 'solid') {
+          var r = C.ratio(t.color, b.color, amb);
+          if (r < need) low.push(Object.assign({ ratio: r, need: need, color: t.color, bg: b.color, fix: C.fix(t.color, b.color, need, amb), size: Math.round(t.size) }, base));
+          else fine++;
+        } else if (t.photo && t.photo.lums) {
+          // worst point = the 5% of the area under the text with the least contrast; also with a band behind the text
+          var Lt = C.lum(t.color), q = function (list, f) { var r = list.map(function (L) { return C.ratioL(Lt, L, amb); }).sort(function (x, y) { return x - y; }); return r[Math.floor(r.length * f)]; };
+          var worst = q(t.photo.lums, 0.05);
+          if (worst < need) photo.push(Object.assign({ ratio: worst, median: q(t.photo.lums, 0.5), band: q(t.photo.band, 0.05), bandDark: t.photo.bandDark, need: need, thumb: t.photo.thumb, color: t.color }, base));
+          else fine++;
+        } else eye.push(base);
+        if (style) {
+          var fs = CL.fonts.norm((style.font === 'altro' ? style.custom : style.font) || ''), ft = CL.fonts.norm(t.font || '');
+          if (fs && ft && ft.indexOf(fs) !== 0 && fs.indexOf(ft) !== 0) off.push(Object.assign({ font: t.font, want: style.font === 'altro' ? style.custom : style.font }, base));
+          else if (t.color && [style.fg, style.accent, style.bg].filter(Boolean).every(function (c) { return C.deltaE(c, t.color) > 3; })) off.push(Object.assign({ colour: t.color, want: style.fg }, base));
+        }
+      });
+      low.sort(function (a, b) { return a.ratio - b.ratio; }); photo.sort(function (a, b) { return a.ratio - b.ratio; }); small.sort(function (a, b) { return a.size - b.size; });
+      group('crit', 'contrast', 'contrast_low', low, { light: st.light });
+      group('warn', 'contrast', 'text_on_photo', photo);
+      group('warn', 'contrast', 'contrast_eye', eye);
+      group('warn', 'size', 'text_small', small, { min: Math.ceil(minAll), rows: rowsK.toFixed(1).replace('.0', '').replace('.', ','), unit: unitName });
+      group('warn', 'style', 'off_style', off);
+      if (!low.length && !photo.length && shownTexts.length) add('ok', 'contrast', 'contrast_ok', { count: fine, total: shownTexts.length });
+      if (!small.length && shownTexts.length) add('ok', 'size', 'textsize_ok', { count: shownTexts.length, min: Math.ceil(minAll), unit: unitName });
+    }
+    /* Charts: series that differ only for people who see red and green well */
+    if (res.charts && res.charts.length) {
+      var CC = CL.color, blind = res.charts.filter(function (ch) {
+        return ch.colors.some(function (a, i) { return ch.colors.some(function (b, j) { return j > i && CC.deltaE(a, b) > 20 && CC.deltaE(CC.deutan(a), CC.deutan(b)) < 12; }); });
+      }).map(function (ch) { return { name: ch.name, slides: [ch.slide] }; });
+      if (blind.length) group('warn', 'contrast', 'chart_colorblind', blind);
+      else if (res.charts.some(function (ch) { return ch.colors.length > 1; })) add('ok', 'contrast', 'charts_ok');
+    }
 
     /* Format and structure */
     var aspect = aspectLabel(res.slideW, res.slideH), ratio = res.slideW / res.slideH;

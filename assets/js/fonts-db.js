@@ -38,5 +38,15 @@
     return 'custom';
   }
 
-  CL.fonts = { classify: classify, norm: norm };
+  /* Height of the lowercase letters as a share of the font size (x-height / em), for the text-size advice.
+     Approximate published metrics; a font not listed counts as 0.5. In the browser the Stile tab measures the installed font instead. */
+  var XH = { aptos: 0.49, calibri: 0.466, calibrilight: 0.466, arial: 0.519, arialnarrow: 0.519, helvetica: 0.523, helveticaneue: 0.517, verdana: 0.545,
+    tahoma: 0.545, georgia: 0.481, timesnewroman: 0.448, times: 0.448, trebuchetms: 0.524, segoeui: 0.5, cambria: 0.466, centurygothic: 0.53,
+    gillsans: 0.46, gillsansmt: 0.46, futura: 0.41, avenir: 0.47, avenirnext: 0.47, sfpro: 0.52, garamond: 0.4, palatino: 0.47, palatinolinotype: 0.47 };
+  function xHeight(name) {
+    var full = norm(name), family = norm(String(name).split('-')[0].replace(WEIGHTS, ''));
+    return XH[full] || XH[family] || 0;
+  }
+
+  CL.fonts = { classify: classify, norm: norm, xHeight: xHeight };
 })(window);

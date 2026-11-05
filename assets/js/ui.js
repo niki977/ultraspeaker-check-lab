@@ -10,8 +10,8 @@
   var CL = g.CheckLab, I = CL.i18n, t = I.t;
   var PROJECTOR_LAB = 'https://niki977.github.io/ultraspeaker-projector-lab/';
   var BASE = g.document.currentScript.src.replace(/assets\/js\/ui\.js.*$/, '');
-  var STEPS = ['read', 'fonts', 'media', 'images', 'evaluate'];
-  var WEIGHT = { read: 40, fonts: 20, media: 25, images: 15, evaluate: 0 }; // share of the bar, by typical duration
+  var STEPS = ['read', 'fonts', 'media', 'images', 'contrast', 'evaluate'];
+  var WEIGHT = { read: 40, fonts: 15, media: 20, images: 15, contrast: 10, evaluate: 0 }; // share of the bar, by typical duration
 
   function h(s) { return String(s === undefined || s === null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
   function $(sel) { return g.document.querySelector(sel); }
@@ -47,6 +47,9 @@
   var checklist = load('checklist', null) || defaultList();
   function saveAll() { save('settings', settings); save('delivery', delivery); save('checklist', checklist); }
   function evaluate() { S.ev = CL.evaluate(S.res, Object.assign({}, settings, { hostOS: P.hostOS })); }
+  var stileCtx = { t: t, h: h, I: I, settings: settings, saveAll: function () { saveAll(); }, render: function () { render(); }, field: function (l, c) { return field(l, c); },
+    asset: function (n) { return asset(n); }, copy: function (text, btn) { copy(text, btn); }, reevaluate: function () { if (S.res) evaluate(); } };
+  var stile = CL.Stile(stileCtx);
 
   /* ---------- pieces ---------- */
   function note(icon, key) { return '<div class="cl-note">' + ICON[icon] + '<span>' + h(t(key)) + '</span></div>'; }
@@ -90,10 +93,13 @@
       '<section class="cl-panel" style="gap:14px"><h2 class="cl-h2">' + h(t('talk.title')) + '</h2>' +
       field('set.venueOS', select('venueOS', ['win', 'mac', 'own', 'unknown'], 'os.')) + field('set.minutes', number('minutes')) +
       field('set.room', select('room', ['16:9', '16:10', '4:3', '3:1', 'unknown'], 'room.')) +
+      '<div class="cl-grid2" style="margin-top:0">' + field('set.light', select('light', ['buio', 'penombra', 'accese'], 'light.')) + field('set.rows', select('rows', ['aula', 'sala', 'plenaria', 'misure'], 'rows.')) + '</div>' +
+      (settings.rows === 'misure' ? '<div class="cl-grid2" style="margin-top:0">' + field('set.scrH', '<input class="cl-input" type="number" min="0.5" step="0.1" data-set="scrH" value="' + h(settings.scrH) + '">') +
+        field('set.rowD', '<input class="cl-input" type="number" min="1" step="0.5" data-set="rowD" value="' + h(settings.rowD) + '">') + '</div>' : '') +
       '<details class="cl-adv"><summary>' + h(t('set.advanced')) + '</summary><div class="cl-grid2">' +
       field('set.warnMB', number('warnMB')) + field('set.critMB', number('critMB')) + field('set.minSec', number('minSec')) + field('set.paceSec', number('paceSec')) + '</div></details></section>' +
       '<section class="cl-panel" style="gap:8px"><span class="cl-overline">' + h(t('checks.title')) + '</span><div class="cl-chips">' +
-      ['fonts', 'media', 'images', 'format', 'time', 'privacy'].map(function (c) { return '<span>' + h(t('cat.' + c)) + '</span>'; }).join('') + '</div></section>' +
+      ['fonts', 'media', 'images', 'contrast', 'size', 'format', 'time', 'privacy'].map(function (c) { return '<span>' + h(t('cat.' + c)) + '</span>'; }).join('') + '</div></section>' +
       (P.mode === 'web' ? '' : '<button class="cl-btn primary big" id="cl-start">▶ ' + h(t('btn.start')) + '</button>') + note('lock', 'privacy.local');
   }
 
@@ -104,16 +110,34 @@
     return '<article class="cl-issue ' + iss.sev + '"><div class="head"><span class="title">' + h(I.issue(iss.id, 't', iss.params)) + '</span>' +
       '<span class="cl-muted">' + h(t('cat.' + iss.cat)) + (iss.slides.length ? ' · ' + h(slideLabel(iss.slides)) : '') + '</span></div>' +
       (risk ? '<p>' + h(risk) + '</p>' : '') + (fix ? '<p class="fix"><strong>' + h(t('rep.fix')) + '</strong> ' + h(fix) + '</p>' : '') +
-      (uses.length ? '<details open><summary>' + h(t('btn.showList', { count: uses.length })) + '</summary><ul class="cl-items">' + uses.map(useRow).join('') + '</ul></details>' : '') +
+      (uses.length ? '<details open><summary>' + h(t('btn.showList', { count: uses.length })) + '</summary><ul class="cl-items">' + uses.slice(0, 40).map(function (x) { return useRow(x, iss.id); }).join('') +
+        (uses.length > 40 ? '<li class="cl-muted">' + h(t('rep.more', { count: uses.length - 40 })) + '</li>' : '') + '</ul></details>' : '') +
       (items.length && !uses.length ? '<details><summary>' + h(t('btn.showList', { count: items.length })) + '</summary><ul class="cl-items">' + items.map(function (x) {
         return '<li><span>' + h(x.name) + '</span><span>' + h(itemDetail(x)) + (x.slides && x.slides.length ? goto(x.slides[0]) : '') + '</span></li>';
       }).join('') + '</ul></details>' : '') +
       (!iss.slides.length || uses.length ? '' : (P.canGoto || iss.slides.length > 4 ? slideLinks(iss.slides, 'btn.gotoList') : '')) + '</article>';
   }
   /* Where a font sets text: slide (clickable in PowerPoint), object, the text itself */
-  function useRow(x) {
+  function useRow(x, id) {
     var where = P.canGoto ? '<button class="cl-link" data-goto="' + x.slides[0] + '">' + h(slideLabel(x.slides)) + '</button>' : h(slideLabel(x.slides));
-    return '<li class="use"><span><strong>' + where + '</strong> · ' + h(objectLabel(x)) + '<br>«' + h(x.text) + '»</span></li>';
+    var extra = itemExtra(x, id), target = h([x.slides[0], x.name || ''].join('|'));
+    var swatch = x.bg ? '<span class="cl-swatch" style="background:' + x.bg + ';color:' + x.color + '" aria-hidden="true">Aa</span>' : '';
+    var act = '';
+    if (id === 'contrast_low' && x.fix) act = '<span class="cl-fixrow"><span class="cl-fixcol"><i style="background:' + x.fix + '"></i><code>' + x.fix + '</code></span>' +
+      (P.canApply && x.name ? '<button class="cl-btn primary sm" data-apply="' + target + '|' + x.fix + '">' + h(t('btn.apply', { color: x.fix })) + '</button>' : '') + '</span>';
+    if (id === 'text_on_photo') act = (x.thumb ? '<img class="cl-thumb" src="' + x.thumb + '" alt="' + h(t('rep.photo.preview')) + '">' : '') +
+      (P.canBand && x.name ? '<button class="cl-btn sm" data-band="' + target + '|' + (x.bandDark ? 'dark' : 'light') + '">' + h(t(x.bandDark ? 'btn.bandDark' : 'btn.bandLight')) + '</button>' : '');
+    return '<li class="use"><span>' + (swatch ? '<span class="cl-userow">' + swatch + '<span>' : '') + '<strong>' + where + '</strong> · ' + h(objectLabel(x)) + '<br>«' + h(x.text) + '»' +
+      (extra ? '<br><span class="cl-extra">' + h(extra) + '</span>' : '') + (swatch ? '</span></span>' : '') + act + '</span></li>';
+  }
+  /* The measure behind a legibility item, in words */
+  function itemExtra(x, id) {
+    var r = function (v) { return v.toFixed(1).replace('.', ',') + ' : 1'; }, n = function (v) { return String(v).replace('.', ','); };
+    if (id === 'contrast_low') return t('rep.contrast.item', { ratio: r(x.ratio), need: n(x.need) }) + (x.size ? ' · ' + x.size + ' ' + x.unit : '') + (x.fix ? ' · ' + t('rep.contrast.fix', { color: x.fix }) : ' · ' + t('rep.contrast.nofix'));
+    if (id === 'text_on_photo') return t('rep.photo.item', { ratio: r(x.ratio), median: r(x.median), need: n(x.need) }) + ' · ' + t(x.bandDark ? 'rep.photo.bandDark' : 'rep.photo.bandLight', { ratio: r(x.band) });
+    if (id === 'text_small') return t('rep.size.item', { size: x.size, min: x.min, unit: x.unit });
+    if (id === 'off_style') return x.font ? t('rep.style.font', { font: x.font, want: x.want }) : t('rep.style.colour', { colour: x.colour, want: x.want });
+    return '';
   }
   /* Every slide involved: clickable numbers in PowerPoint, a plain list online */
   function slideLinks(slides, label) {
@@ -196,17 +220,20 @@
   }
 
   function render() {
-    var main = S.tab === 'report' ? reportTab() : (S.tab === 'venue' ? venueTab() : checkTab());
+    var main = S.tab === 'report' ? reportTab() : (S.tab === 'venue' ? venueTab() : (S.tab === 'style' ? stile.render() : checkTab()));
+    var a = g.document.activeElement, keep = a && a.id ? { id: a.id, at: a.selectionStart, to: a.selectionEnd } : null;
     $('#app').innerHTML =
       '<header class="cl-header"><span class="cl-brand"><img src="' + BASE + 'assets/img/check-lab-logo.svg" width="157" height="52" alt="The Ultraspeaker Check Lab"></span>' +
       '<select id="cl-lang" class="cl-select small" aria-label="' + h(t('lang.label')) + '">' + I.LANGS.map(function (l) {
         return '<option value="' + l + '"' + (l === I.lang ? ' selected' : '') + '>' + l.toUpperCase() + '</option>';
       }).join('') + '</select></header>' +
-      '<nav class="cl-tabs" role="tablist" aria-label="' + h(t('nav.sections')) + '">' + ['check', 'report', 'venue'].map(function (k) {
+      '<nav class="cl-tabs" role="tablist" aria-label="' + h(t('nav.sections')) + '">' + ['style', 'check', 'report', 'venue'].map(function (k) {
         return '<button class="cl-tab" role="tab" data-tab="' + k + '" aria-selected="' + (S.tab === k) + '">' + h(t('nav.' + k)) + '</button>';
       }).join('') + '</nav><main class="cl-main">' + main + '</main>' +
       '<footer class="cl-footer">' + ['guide', 'privacy', 'terms', 'support'].map(function (k) { return '<button class="cl-link" data-page="' + k + '">' + h(t('foot.' + k)) + '</button>'; }).join('') + '</footer>';
     bind();
+    var back = keep && g.document.getElementById(keep.id);                // typing in a field survives a re-render
+    if (back) { back.focus(); try { if (keep.at !== null && keep.at !== undefined) back.setSelectionRange(keep.at, keep.to); } catch (e) { /* not a text field */ } }
   }
   function go(tab) { S.tab = tab; S.error = ''; render(); g.scrollTo(0, 0); }
 
@@ -219,6 +246,7 @@
       settings[el.dataset.set] = el.type === 'number' && el.value !== '' ? Number(el.value) : el.value;
       saveAll();
       if (S.res) evaluate();
+      if (el.dataset.set === 'rows') render();                      // shows or hides the measures
     });
     on('#cl-start', 'click', function () { run(); });
     on('#cl-cancel', 'click', function (el) { S.token.cancelled = true; el.disabled = true; });
@@ -232,6 +260,14 @@
       else if (e.dataTransfer.files[0]) run(e.dataTransfer.files[0]);
     });
     on('[data-goto]', 'click', function (el) { P.goto(Number(el.dataset.goto)); });
+    on('[data-apply]', 'click', function (el) {
+      var p = el.dataset.apply.split('|'); el.disabled = true;
+      P.applyColor(+p[0], p[1], p[2]).then(function () { CL.UI.notice(t('note.applied')); }, function () { CL.UI.notice(t('note.applyFailed')); });
+    });
+    on('[data-band]', 'click', function (el) {
+      var p = el.dataset.band.split('|'); el.disabled = true;
+      P.addBand(+p[0], p[1], p[2] === 'dark').then(function () { CL.UI.notice(t('note.bandAdded')); }, function () { CL.UI.notice(t('note.applyFailed')); });
+    });
     on('#cl-pdf', 'click', exportPdf);
     on('#cl-copy', 'click', function (el) { copy(reportText(), el); });
     on('#cl-again', 'click', function () { if (P.mode === 'web') { S.res = S.ev = S.zip = null; go('check'); } else run(); });
@@ -292,7 +328,16 @@
       file.bytes = null;
       var opts = { fileName: file.name, fileBytes: file.size, token: token, onProgress: progress };
       var res = /\.key$/i.test(file.name) ? await CL.analyzeKey(zip, opts) : await CL.analyzePptx(zip, opts);
+      progress('contrast', 0);
+      try {
+        if (res.type === 'pptx') await CL.textsPptx(zip, res, opts);
+        await CL.photo.measure(zip, res, Object.assign({ light: settings.light }, opts));
+      } catch (e) {
+        if (e.message === 'cancelled') throw e;
+        g.console.warn(e); res.texts = null;                              // the other checks stay valid
+      }
       S.zip = zip; S.res = res; S.kitStatus = {};
+      stile.setFormat(res.type === 'key' ? (res.slideW / res.slideH < 1.5 ? 'key43' : 'key169') : (res.slideW / res.slideH < 1.5 ? 'ppt43' : 'ppt169'));
       progress('evaluate', 0);
       evaluate();
       STEPS.forEach(function (p) { S.steps[p] = 'done'; });
@@ -309,7 +354,10 @@
 
   /* ---------- report as text and PDF ---------- */
   function fontsLine() { var f = S.ev.summary.fonts; return t('rep.sum.fonts', { count: f.length }) + (f.length ? ': ' + f.map(function (x) { return x.name; }).join(', ') : ''); }
-  function settingsLine() { return t('pdf.settings', { os: t('os.' + settings.venueOS), room: settings.room === 'unknown' ? '?' : settings.room, minutes: settings.minutes || '-' }); }
+  function settingsLine() {
+    return t('pdf.settings', { os: t('os.' + settings.venueOS), room: settings.room === 'unknown' ? '?' : settings.room, minutes: settings.minutes || '-' }) + ' · ' +
+      t('pdf.settings2', { light: t('light.' + settings.light), rows: CL.color.rows(settings).toFixed(1).replace('.0', '').replace('.', ',') });
+  }
   function reportLines() {
     var ev = S.ev, out = [];
     ['crit', 'warn', 'ok'].forEach(function (sev) {
@@ -320,7 +368,8 @@
         out.push({ sev: sev, title: I.issue(i.id, 't', i.params) + (i.slides.length ? ' (' + t('rep.slide', { list: i.slides.join(', ') }) + ')' : '') });
         if (sev !== 'ok') ['r', 'f'].forEach(function (part) { var s = I.issue(i.id, part, i.params); if (s) out.push({ text: (part === 'f' ? t('rep.fix') + ' ' : '') + s }); });
         i.items.slice(0, 25).forEach(function (x) {
-          out.push({ item: x.text ? '- ' + slideLabel(x.slides) + ' · ' + objectLabel(x) + ' · «' + x.text + '»' : '- ' + x.name + (itemDetail(x) ? ': ' + itemDetail(x) : '') });
+          var extra = itemExtra(x, i.id);
+          out.push({ item: x.text ? '- ' + slideLabel(x.slides) + ' · ' + objectLabel(x) + ' · «' + x.text + '»' + (extra ? ' · ' + extra : '') : '- ' + x.name + (itemDetail(x) ? ': ' + itemDetail(x) : '') });
         });
       });
     });
@@ -401,7 +450,10 @@
   }
 
   CL.UI = {
-    init: function (platform) { P = platform; I.set(I.detect(P.langHint)); g.document.body.classList.add(P.mode); render(); },
+    init: function (platform) {
+      P = stileCtx.P = platform; I.set(I.detect(P.langHint)); g.document.body.classList.add(P.mode);
+      stile.install($('#app')); render();
+    },
     notice: function (msg) { S.notice = msg; render(); },
     base64: base64,
     download: function (bytes, name, type) {

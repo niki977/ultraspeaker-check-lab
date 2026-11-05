@@ -184,5 +184,6 @@
     return res;
   }
 
+  CL.ooxml = { unxml: unxml, attr: attr, all: all, read: read, rels: rels, list: list, text: text };
   CL.analyzePptx = analyze;
 })(window);

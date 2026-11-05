@@ -152,6 +152,69 @@
       }
       return (fontCache[id] = f);
     }
+    // A character property along the style chain (TSWP.CharacterStylePropertiesArchive: bold 1, size 3, font 5, colour 7)
+    function styleProp(id, read) {
+      for (var k = 0, cur = id; cur && k < 30; k++) {
+        var st = get(cur);
+        if (!st || (st.type !== T.CHARSTYLE && st.type !== T.PARASTYLE)) return undefined;
+        var v = read(sub(st.m, 11));
+        if (v !== undefined && v !== null && v !== '') return v;
+        cur = ref(sub(st.m, 1), 3);
+      }
+      return undefined;
+    }
+    function tspColor(c) {                                          // TSP.Color: model 1 rgb (3, 4, 5), 2 cmyk (7-10), 3 white (11)
+      if (!c) return null;
+      var model = num(c, 1) || 1, v = function (n) { return num(c, n) || 0; };
+      if (model === 3) return CL.color.toHex([v(11) * 255, v(11) * 255, v(11) * 255]);
+      if (model === 2) return CL.color.toHex([v(7), v(8), v(9)].map(function (x) { return 255 * (1 - x) * (1 - v(10)); }));
+      return CL.color.toHex([v(3) * 255, v(4) * 255, v(5) * 255]);
+    }
+    // TSD.FillArchive: colour 1, gradient 2 (stops 2, each with colour 1), image 3 (data 6 or 7)
+    function fillOf(f) {
+      if (!f) return null;
+      var c = sub(f, 1), gr = sub(f, 2), im = sub(f, 3);
+      if (c) return { kind: 'solid', color: tspColor(c) };
+      if (gr) {
+        var stops = subs(gr, 2).map(function (x) { return tspColor(sub(x, 1)); }).filter(Boolean);
+        return stops.length && stops.every(function (x) { return CL.color.deltaE(x, stops[0]) < 6; }) ? { kind: 'solid', color: stops[0] } : { kind: 'gradient' };
+      }
+      if (im) { var file = files[ref(im, 6)] || files[ref(im, 7)]; return { kind: 'image', path: file && file.path }; }
+      return { kind: 'none' };
+    }
+    // Fill of a shape style (TSWP.ShapeStyleArchive 2025 wraps TSD.ShapeStyleArchive 3015: properties 11, fill 1) or of a slide style (KN 9)
+    function styleFill(id) {
+      for (var k = 0, cur = id; cur && k < 30; k++) {
+        var st = get(cur);
+        if (!st) return null;
+        var base = st.type === 2025 ? sub(st.m, 1) : (st.type === 3015 || st.type === 9 ? st.m : null);
+        if (!base) return null;
+        var props = sub(base, 11);
+        if (props && props[1]) return fillOf(sub(props, 1));
+        cur = ref(sub(base, 1), 3);
+      }
+      return null;
+    }
+    /* Text of a storage cut by font, colour, size and weight */
+    function textGroups(storageId) {
+      var st = get(storageId), out = {};
+      if (!st || (st.type !== T.STORAGE && st.type !== T.STORAGE2)) return [];
+      var text = strs(st.m, 3).join(''), paras = table(st.m, 5), chars = table(st.m, 8);
+      var cuts = [0, text.length].concat(paras.map(function (x) { return x.at; }), chars.map(function (x) { return x.at; }))
+        .filter(function (v, i, a) { return v <= text.length && a.indexOf(v) === i; }).sort(function (a, b) { return a - b; });
+      function at(list, i) { var r = null; list.forEach(function (x) { if (x.at <= i) r = x; }); return r && r.id; }
+      for (var i = 0; i < cuts.length - 1; i++) {
+        var piece = text.slice(cuts[i], cuts[i + 1]), cs = at(chars, cuts[i]), ps = at(paras, cuts[i]);
+        if (!clean(piece)) continue;
+        var prop = function (read) { var v = cs ? styleProp(cs, read) : undefined; return v === undefined && ps ? styleProp(ps, read) : v; };
+        var font = prop(function (cp) { return str(cp, 5); }), colour = prop(function (cp) { var c = sub(cp, 7); return c ? tspColor(c) : undefined; }) || '#000000';
+        var size = prop(function (cp) { return num(cp, 3); }) || 0, bold = prop(function (cp) { var b = num(cp, 1); return b === undefined ? undefined : b === 1; }) || false;
+        if (!font) continue;
+        var key = [font, colour, size, bold].join('|');
+        (out[key] = out[key] || { font: family(font), color: colour, size: Math.round(size * 10) / 10, bold: bold, text: '' }).text += piece;
+      }
+      return Object.keys(out).map(function (k) { return out[k]; });
+    }
     function table(storage, n) {                                  // ObjectAttributeTable: [{at, id}]
       return subs(sub(storage, n), 1).map(function (e) { return { at: num(e, 1) || 0, id: ref(e, 2) }; }).sort(function (a, b) { return a.at - b.at; });
     }
@@ -190,6 +253,11 @@
     }
 
     var fonts = {}, mediaById = {}, imageUses = {};
+    res.texts = []; res.fontUnit = 1;                                  // Keynote sizes are points on a slide measured in pixels
+    function overlap(a, b) {
+      var w = Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x), h = Math.min(a.y + a.h, b.y + b.h) - Math.max(a.y, b.y);
+      return w > 0 && h > 0 ? w * h / Math.max(1, a.w * a.h) : 0;
+    }
     function picture(file) { return (imageUses[file.path] = imageUses[file.path] || { path: file.path, name: file.name, uses: [] }).uses; }
     function addFont(ps, use) {
       var name = family(ps), k = name.toLowerCase();
@@ -197,12 +265,16 @@
     }
 
     /* One object shown on a slide: returns true when it puts something on the screen */
-    function visit(id, sn, kindHint, fromMaster, depth) {
+    // Texts and pictures of the slide being read, in stacking order, for what is behind each text
+    var slideTexts = [], slidePics = [], z = 0;
+    function visit(id, sn, kindHint, fromMaster, depth, off) {
       var o = get(id);
       if (!o || depth > 20) return false;
+      off = off || { x: 0, y: 0 };
       var t = o.type, d, content = false;
       if (t === T.GROUP) {
-        refs(o.m, 2).forEach(function (c) { if (visit(c, sn, null, fromMaster, depth + 1)) content = true; });
+        var gd = drawable(o), inner = { x: off.x + gd.x, y: off.y + gd.y };      // children are placed in the group's frame
+        refs(o.m, 2).forEach(function (c) { if (visit(c, sn, null, fromMaster, depth + 1, inner)) content = true; });
         return content;
       }
       if (t === T.PH || t === T.PH2 || t === T.SHAPEINFO) {
@@ -215,6 +287,15 @@
           var said = clean(byFont[f]);
           addFont(f, { slide: sn, kind: kind, shape: d.label, text: said.length > 80 ? said.slice(0, 79) + '…' : said });
         });
+        // Colour, size and background of the text: an unreadable detail only leaves that text out
+        try {
+          var own = styleFill(ref(sub(info, 1), 2)), rect = { x: off.x + d.x, y: off.y + d.y, w: d.w, h: d.h };
+          if (kind !== 'slideNumber') textGroups(storage).forEach(function (gr) {
+            var said = clean(gr.text);
+            slideTexts.push({ slide: sn, shape: d.label, kind: kind, title: kind === 'title', text: said.length > 80 ? said.slice(0, 79) + '…' : said,
+              font: gr.font, color: gr.color, size: gr.size, bold: gr.bold, rect: rect, own: own, z: z++ });
+          });
+        } catch (e) { res.textsPartial = true; }
         links(storage, sn);
         if (d.url && /^https?:/i.test(d.url)) res.links.push({ slide: sn, kind: 'web', target: d.url });
         return t === T.SHAPEINFO || !!storageText(storage);              // an empty placeholder shows nothing
@@ -223,14 +304,16 @@
         d = drawable(o);
         var file = files[ref(o.m, 11)] || files[ref(o.m, 13)];
         if (!file) return true;
-        var mask = get(ref(o.m, 5)), crop = { l: 0, t: 0, r: 0, b: 0 }, shown = d.w;
+        var mask = get(ref(o.m, 5)), crop = { l: 0, t: 0, r: 0, b: 0 }, shown = d.w, vis = { x: off.x + d.x, y: off.y + d.y, w: d.w, h: d.h };
         if (mask && d.w && d.h) {                                       // the mask is the visible window, in the picture's frame
           var mk = drawable(mask);
           if (mk.w && mk.h) {
             crop = { l: Math.max(0, mk.x / d.w), t: Math.max(0, mk.y / d.h), r: Math.max(0, 1 - (mk.x + mk.w) / d.w), b: Math.max(0, 1 - (mk.y + mk.h) / d.h) };
             shown = Math.min(d.w, mk.w);
+            vis = { x: vis.x + Math.max(0, mk.x), y: vis.y + Math.max(0, mk.y), w: Math.min(d.w, mk.w), h: Math.min(d.h, mk.h) };
           }
         }
+        slidePics.push({ z: fromMaster ? -100000 + z++ : z++, path: file.path, rect: vis, crop: crop });
         picture(file).push({ slide: sn, cx: shown, crop: crop, kind: fromMaster ? 'master' : 'image', shape: d.label });
         if (d.url && /^https?:/i.test(d.url)) res.links.push({ slide: sn, kind: 'web', target: d.url });
         return true;
@@ -275,6 +358,22 @@
         background(ref(tpl.m, 1), sn);
       }
       background(ref(m, 1), sn);
+      // What is behind each text: its own fill, else a picture under it, else the slide background
+      var bg = null;
+      try { bg = styleFill(ref(m, 1)) || (tpl && styleFill(ref(tpl.m, 1))); } catch (e) { res.textsPartial = true; }
+      bg = bg || { kind: 'solid', color: '#FFFFFF' };
+      if (bg.kind === 'none') bg = { kind: 'solid', color: '#FFFFFF' };
+      if (bg.kind === 'image') bg = bg.path ? { kind: 'image', over: { path: bg.path, rect: { x: 0, y: 0, w: res.slideW, h: res.slideH }, crop: { l: 0, t: 0, r: 0, b: 0 } } } : { kind: 'unknown' };
+      slideTexts.forEach(function (tx) {
+        var behind = tx.own && tx.own.kind !== 'none' ? tx.own : null;
+        if (behind && behind.kind === 'image') behind = behind.path ? { kind: 'image', over: { path: behind.path, rect: tx.rect, crop: { l: 0, t: 0, r: 0, b: 0 } } } : { kind: 'unknown' };
+        if (!behind) {
+          var under = slidePics.filter(function (p) { return p.z < tx.z && overlap(tx.rect, p.rect) > 0.3; }).sort(function (a, b) { return a.z - b.z; }).pop();
+          behind = under ? { kind: 'image', over: under } : bg;
+        }
+        res.texts.push({ slide: tx.slide, shape: tx.shape, kind: tx.kind, title: tx.title, text: tx.text, font: tx.font, color: tx.color, size: tx.size, bold: tx.bold, rect: tx.rect, behind: behind });
+      });
+      slideTexts = []; slidePics = [];
     });
 
     function values(o) { return Object.keys(o).map(function (k) { return o[k]; }); }
@@ -285,7 +384,7 @@
   /* When the structure cannot be read: the estimate of earlier versions (slide count, fonts named in the styles, every picture in Data/) */
   async function estimate(zip, res, iwas, streams, data) {
     res.limited = true;
-    res.slides = []; res.fonts = []; res.links = [];
+    res.slides = []; res.fonts = []; res.links = []; res.texts = null;
     iwas.forEach(function (n) { if (/\/Slide[-\d]*\.iwa$/.test(n)) res.slides.push({ index: res.slides.length + 1, hidden: null, empty: null, notes: null }); });
     var prev = zip.file('preview.jpg');
     if (prev) { var p = CL.probe.image(await prev.async('uint8array'), 'preview.jpg'); res.slideW = p.width; res.slideH = p.height; }

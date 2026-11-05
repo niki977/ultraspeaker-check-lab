@@ -120,6 +120,60 @@
     return zip.generateAsync({ type: 'uint8array', compression: 'DEFLATE', mimeType: 'application/vnd.openxmlformats-officedocument.presentationml.presentation' });
   }
 
+  /* ---------- The template of the Style tab ----------
+     opts: template (bytes), bg, fg, accent, font, sizes {title, text, caption} in points, wide (16:9, else 4:3), lang, texts {title, sub, head, body}
+     Theme: text = dk1/dk2, background = lt1/lt2, highlight = accent1 and links; fonts in the font scheme; sizes in the master; two slides to start from. */
+  async function template(o) {
+    var zip = await new g.JSZip().loadAsync(o.template), k = o.wide ? 1 : 9144000 / 12192000;
+    var clr = function (c) { return '<a:srgbClr val="' + c.slice(1) + '"/>'; };
+    var th = await zip.file('ppt/theme/theme1.xml').async('string');
+    [['dk1', o.fg], ['lt1', o.bg], ['dk2', o.fg], ['lt2', o.bg], ['accent1', o.accent], ['hlink', o.accent], ['folHlink', o.accent]].forEach(function (x) {
+      th = th.replace(new RegExp('<a:' + x[0] + '>[\\s\\S]*?</a:' + x[0] + '>'), '<a:' + x[0] + '>' + clr(x[1]) + '</a:' + x[0] + '>');
+    });
+    th = th.replace(/<a:clrScheme name="[^"]*"/, '<a:clrScheme name="Check Lab"').replace(/<a:fontScheme name="[^"]*"/, '<a:fontScheme name="Check Lab"')
+      .replace(/(<a:majorFont>\s*<a:latin typeface=")[^"]*"/, '$1' + esc(o.font) + '"').replace(/(<a:minorFont>\s*<a:latin typeface=")[^"]*"/, '$1' + esc(o.font) + '"');
+    zip.file('ppt/theme/theme1.xml', th);
+    // Sizes: title, text, then smaller levels, never under the caption minimum
+    var z = o.sizes, ms = await zip.file('ppt/slideMasters/slideMaster1.xml').async('string');
+    function sizes(style, list) {
+      return style.replace(/<a:lvl(\d)pPr([^>]*)>([\s\S]*?)<\/a:lvl\1pPr>/g, function (m, n, at, body) {
+        return '<a:lvl' + n + 'pPr' + at + '>' + body.replace(/(<a:defRPr[^>]*\ssz=")\d+"/, '$1' + Math.round(list[Math.min(+n, list.length) - 1] * 100) + '"') + '</a:lvl' + n + 'pPr>';
+      });
+    }
+    ms = ms.replace(/<p:titleStyle>[\s\S]*?<\/p:titleStyle>/, function (m) { return sizes(m, [z.title]); })
+      .replace(/<p:bodyStyle>[\s\S]*?<\/p:bodyStyle>/, function (m) { return sizes(m, [z.text, Math.max(z.caption, Math.round(z.text * 0.875)), z.caption]); });
+    var files = Object.keys(zip.files).filter(function (n) { return /^ppt\/(slideMasters|slideLayouts)\/[^/]+\.xml$/.test(n); });
+    var pres = await zip.file('ppt/presentation.xml').async('string');
+    pres = pres.replace(/<p:sldSz[^>]*\/>/, '<p:sldSz cx="' + (o.wide ? 12192000 : 9144000) + '" cy="6858000"/>');
+    for (var i = 0; i < files.length; i++) {
+      var x = files[i] === 'ppt/slideMasters/slideMaster1.xml' ? ms : await zip.file(files[i]).async('string');
+      if (k !== 1) x = x.replace(/(<a:off x=")(-?\d+)/g, function (m, p, v) { return p + Math.round(v * k); }).replace(/(<a:ext cx=")(\d+)/g, function (m, p, v) { return p + Math.round(v * k); });
+      zip.file(files[i], x);
+    }
+    // Two slides: title, and title with content
+    function ph(id, type, idx, paras) {
+      return '<p:sp><p:nvSpPr><p:cNvPr id="' + id + '" name="' + (type || 'Content') + ' ' + id + '"/><p:cNvSpPr><a:spLocks noGrp="1"/></p:cNvSpPr><p:nvPr><p:ph' + (type ? ' type="' + type + '"' : '') + (idx ? ' idx="' + idx + '"' : '') + '/></p:nvPr></p:nvSpPr><p:spPr/>' +
+        '<p:txBody><a:bodyPr/><a:lstStyle/>' + paras.map(function (p) { return '<a:p><a:r><a:rPr lang="' + o.lang + '"/><a:t>' + esc(p) + '</a:t></a:r></a:p>'; }).join('') + '</p:txBody></p:sp>';
+    }
+    var slides = [[1, [ph(2, 'ctrTitle', 0, [o.texts.title]), ph(3, 'subTitle', 1, [o.texts.sub])]], [2, [ph(2, 'title', 0, [o.texts.head]), ph(3, '', 1, o.texts.body.split('\n'))]]];
+    var ids = '', presRels = '', overrides = '';
+    slides.forEach(function (sl, j) {
+      var num = j + 1;
+      zip.file('ppt/slides/slide' + num + '.xml', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<p:sld ' + NS + '><p:cSld><p:spTree><p:nvGrpSpPr><p:cNvPr id="1" name=""/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr><p:grpSpPr/>' +
+        sl[1].join('') + '</p:spTree></p:cSld><p:clrMapOvr><a:masterClrMapping/></p:clrMapOvr></p:sld>');
+      zip.file('ppt/slides/_rels/slide' + num + '.xml.rels', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="' + REL + 'slideLayout" Target="../slideLayouts/slideLayout' + sl[0] + '.xml"/></Relationships>');
+      ids += '<p:sldId id="' + (256 + j) + '" r:id="rIdS' + num + '"/>';
+      presRels += '<Relationship Id="rIdS' + num + '" Type="' + REL + 'slide" Target="slides/slide' + num + '.xml"/>';
+      overrides += '<Override PartName="/ppt/slides/slide' + num + '.xml" ContentType="application/vnd.openxmlformats-officedocument.presentationml.slide+xml"/>';
+    });
+    zip.file('ppt/presentation.xml', pres.replace('</p:sldMasterIdLst>', '</p:sldMasterIdLst><p:sldIdLst>' + ids + '</p:sldIdLst>'));
+    var pr = await zip.file('ppt/_rels/presentation.xml.rels').async('string');
+    zip.file('ppt/_rels/presentation.xml.rels', pr.replace('</Relationships>', presRels + '</Relationships>'));
+    var ct = await zip.file('[Content_Types].xml').async('string');
+    zip.file('[Content_Types].xml', ct.replace('</Types>', overrides + '</Types>'));
+    return zip.generateAsync({ type: 'uint8array', compression: 'DEFLATE', mimeType: 'application/vnd.openxmlformats-officedocument.presentationml.presentation' });
+  }
+
   /* ---------- What goes in each kit ---------- */
   function size(b) { return b < 1048576 ? Math.max(1, Math.round(b / 1024)) + ' KB' : (b / 1048576).toFixed(1) + ' MB'; }
   function from(slides, t) { return slides.length ? [t('kit.from', { slides: slides.join(', ') })] : []; }
@@ -167,5 +221,5 @@
     });
   }
 
-  CL.kit = { build: build, myVideos: myVideos, myImages: myImages, genericItems: genericItems };
+  CL.kit = { build: build, template: template, myVideos: myVideos, myImages: myImages, genericItems: genericItems };
 })(window);
